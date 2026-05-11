@@ -1210,14 +1210,28 @@
     .wx-meniny-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 10px;
       margin-bottom: 22px;
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 480px) {
       .wx-meniny-row {
-        grid-template-columns: 1fr;
+        gap: 8px;
       }
+      .wx-icon { font-size: 26px; }
+      .wx-temp { font-size: 26px; }
+      .wx-main { gap: 8px; margin-bottom: 10px; }
+      .wx-hourly { gap: 4px; }
+      .wx-hour { min-width: 36px; padding: 5px 5px; }
+      .wx-hour-icon { font-size: 13px; }
+      .wx-hour-temp { font-size: 10px; }
+      .wx-forecast { gap: 4px; }
+      .wx-day { padding: 6px 2px; }
+      .wx-day-icon { font-size: 14px; }
+      .wx-day-hi { font-size: 10px; }
+      .wx-day-lo { font-size: 9px; }
+      .meniny-today-name { font-size: 16px; }
+      .meniny-row-name { font-size: 11px; }
     }
 
     /* Weather card */
