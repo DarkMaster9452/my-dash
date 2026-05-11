@@ -534,7 +534,7 @@ async function handleGmail(req, res) {
   try {
     const token = await refreshGoogleAccessToken();
     const listResponse = await fetch(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+newer_than:1d&maxResults=8',
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+after:2026/05/10&maxResults=8',
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const { messages = [] } = await listResponse.json();
@@ -577,17 +577,10 @@ async function handleCalendar(req, res) {
 
   try {
     const token = await refreshGoogleAccessToken();
-    const now = new Date();
-    const offset = 2 * 60;
-    const local = new Date(now.getTime() + offset * 60000);
-    const year = local.getUTCFullYear();
-    const month = local.getUTCMonth();
-    const day = local.getUTCDate();
-    const start = new Date(Date.UTC(year, month, day, 0, 0, 0) - offset * 60000).toISOString();
-    const end = new Date(Date.UTC(year, month, day, 23, 59, 59) - offset * 60000).toISOString();
+    const now = new Date().toISOString();
 
     const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(start)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=15`,
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now)}&singleEvents=true&orderBy=startTime&maxResults=5`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const { items = [] } = await response.json();

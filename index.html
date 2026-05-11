@@ -3159,12 +3159,15 @@
           return;
         }
         const events = data.events || [];
-        if (!events.length) { document.getElementById('calBody').innerHTML = '<div class="widget-ok">✅ Dnes nič naplánované</div>'; return; }
+        if (!events.length) { document.getElementById('calBody').innerHTML = '<div class="widget-ok">✅ Žiadne nadchádzajúce udalosti</div>'; return; }
         const p = (n) => String(n).padStart(2, '0');
         document.getElementById('calBody').innerHTML = events.map(ev => {
+          const startDate = new Date(ev.start);
+          const isToday = startDate.toDateString() === new Date().toDateString();
+          const dayLabel = isToday ? 'dnes' : startDate.toLocaleDateString('sk-SK', { weekday: 'short', day: 'numeric', month: 'numeric' });
           const timeStr = ev.allDay
-            ? `<span class="cal-allday">celý deň</span>`
-            : (() => { const s = new Date(ev.start); return `${p(s.getHours())}:${p(s.getMinutes())}`; })();
+            ? `<span class="cal-allday">${dayLabel} · celý deň</span>`
+            : `<span class="cal-allday">${dayLabel}</span> ${p(startDate.getHours())}:${p(startDate.getMinutes())}`;
           const meta = [ev.location ? `📍 ${ev.location.slice(0, 28)}` : '', ev.attendees > 1 ? `👥 ${ev.attendees}` : ''].filter(Boolean).join('  ');
           return `<div class="cal-event">
             <div class="cal-time">${timeStr}</div>
