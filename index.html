@@ -1150,6 +1150,197 @@
       padding: 8px 10px;
     }
 
+    /* ── Sleep section ── */
+    .sleep-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 480px) {
+      .sleep-card {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+    }
+
+    .sleep-score-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 90px;
+    }
+
+    .sleep-score-ring {
+      position: relative;
+      width: 84px;
+      height: 84px;
+    }
+
+    .sleep-score-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .sleep-score-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sleep-score-num {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .sleep-score-label {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+    }
+
+    .sleep-score-tag {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+    }
+
+    .sleep-main {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sleep-duration {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text-primary);
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      line-height: 1;
+    }
+
+    .sleep-times {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    .sleep-times .sleep-arrow {
+      color: var(--text-tertiary);
+      margin: 0 4px;
+    }
+
+    .sleep-avg-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .sleep-avg-item {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .sleep-avg-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+    }
+
+    .sleep-avg-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      font-family: ui-monospace, monospace;
+    }
+
+    .sleep-chart {
+      margin-top: 18px;
+      border-top: 1px solid rgba(255,255,255,.05);
+      padding-top: 14px;
+    }
+
+    .sleep-chart-eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+      margin-bottom: 10px;
+    }
+
+    .sleep-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 64px;
+    }
+
+    .sleep-bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .sleep-bar {
+      width: 100%;
+      border-radius: 4px 4px 2px 2px;
+      min-height: 3px;
+      transition: height .4s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+
+    .sleep-bar.is-tonight {
+      box-shadow: 0 0 8px rgba(107,227,164,.35);
+    }
+
+    .sleep-bar-day {
+      font-size: 9px;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+      text-align: center;
+    }
+
+    .sleep-bar-val {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, monospace;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .sleep-locked {
+      color: var(--text-tertiary);
+      font-size: 13px;
+      text-align: center;
+      padding: 10px 0;
+    }
+
     /* ── Login overlay (only for fitness gate, lightweight) ── */
     #login-overlay {
       display: none;
@@ -2080,6 +2271,16 @@
     </div>
   </div>
 
+  <!-- ── Sleep section ── -->
+  <div class="section">
+    <div class="section-title">Spánok</div>
+    <div class="card" id="sleepCard">
+      <div id="sleepBody">
+        <div class="sleep-locked">Prihlás sa pre zobrazenie spánku. <button onclick="openLogin()">Sign in</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── To Do List section ── -->
   <div class="section">
     <div class="section-title">To Do List</div>
@@ -2934,6 +3135,9 @@
       if (!_fitData) return;
       const { strava, sleep } = _fitData;
 
+      // Render dedicated sleep section
+      renderSleep(sleep);
+
       // Longest run vs goal
       const longestKm = strava?.longestKm || 0;
       const num = document.getElementById('fitProgressNum');
@@ -3050,6 +3254,128 @@
       }
     }
 
+    function sleepScore(minutes) {
+      // Score based on how close to 7.5h optimal (450 min)
+      if (!minutes) return 0;
+      const optimal = 450;
+      const diff = Math.abs(minutes - optimal);
+      const raw = Math.max(40, 100 - Math.round(diff / 5));
+      return Math.min(100, raw);
+    }
+
+    function sleepScoreColor(score) {
+      if (score >= 85) return '#6BE3A4'; // green
+      if (score >= 70) return '#F2C063'; // yellow
+      return '#FF6B6B';                  // red
+    }
+
+    function sleepQualityTag(score) {
+      if (score >= 90) return 'Výborný';
+      if (score >= 80) return 'Dobrý';
+      if (score >= 70) return 'Ok';
+      if (score >= 55) return 'Slabý';
+      return 'Zlý';
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function fmtShortDay(iso) {
+      if (!iso) return '?';
+      const d = new Date(iso);
+      return ['Ne','Po','Ut','St','Št','Pi','So'][d.getDay()];
+    }
+
+    function renderSleep(sleep) {
+      const el = document.getElementById('sleepBody');
+      if (!sleep || sleep.error || sleep.needsAuth) {
+        el.innerHTML = `<div class="sleep-locked">${sleep?.needsAuth ? 'Prihlás sa pre zobrazenie spánku. <button onclick="openLogin()">Sign in</button>' : '⚠️ Žiadne dáta o spánku'}</div>`;
+        return;
+      }
+
+      const last = sleep.lastNight;
+      const mins = last?.minutes || 0;
+      const score = sleepScore(mins);
+      const color = sleepScoreColor(score);
+      const tag = sleepQualityTag(score);
+
+      // Score ring SVG (r=36, circ≈226)
+      const circ = 2 * Math.PI * 36;
+      const dash = circ * (score / 100);
+      const gap = circ - dash;
+
+      // 7-night bar chart
+      const sessions = sleep.sessions || [];
+      const maxMin = sessions.length ? Math.max(...sessions.map(s => s.minutes)) : mins || 480;
+      const DAYS_SK_SHORT = ['Ne','Po','Ut','St','Št','Pi','So'];
+
+      const barsHtml = sessions.slice().reverse().map((s, i) => {
+        const pct = maxMin ? Math.round((s.minutes / maxMin) * 100) : 0;
+        const h = Math.max(4, Math.round(pct * 0.64)); // max 64px
+        const isLast = i === sessions.length - 1;
+        const barColor = isLast ? color : 'rgba(255,255,255,0.12)';
+        const h2 = Math.floor(s.minutes / 60);
+        const m2 = s.minutes % 60;
+        const label = h2 ? `${h2}h` : `${m2}m`;
+        const day = fmtShortDay(s.end);
+        return `<div class="sleep-bar-col">
+          <div class="sleep-bar-val">${label}</div>
+          <div class="sleep-bar${isLast ? ' is-tonight' : ''}" style="height:${h}px;background:${barColor}"></div>
+          <div class="sleep-bar-day">${day}</div>
+        </div>`;
+      }).join('');
+
+      const avgH = Math.floor((sleep.avgMinutes || 0) / 60);
+      const avgM = (sleep.avgMinutes || 0) % 60;
+      const avgStr = avgH ? `${avgH}h ${avgM}m` : `${avgM}m`;
+
+      el.innerHTML = `
+        <div class="sleep-card">
+          <div class="sleep-score-wrap">
+            <div class="sleep-score-ring">
+              <svg width="84" height="84" viewBox="0 0 84 84">
+                <circle cx="42" cy="42" r="36" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6"/>
+                <circle cx="42" cy="42" r="36" fill="none" stroke="${color}" stroke-width="6"
+                  stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}"
+                  stroke-linecap="round"/>
+              </svg>
+              <div class="sleep-score-center">
+                <div class="sleep-score-num" style="color:${color}">${score}</div>
+                <div class="sleep-score-label">skóre</div>
+              </div>
+            </div>
+            <div class="sleep-score-tag" style="color:${color}">${tag}</div>
+          </div>
+          <div class="sleep-main">
+            <div class="sleep-duration">${fmtHM(mins)}</div>
+            <div class="sleep-times">
+              ${last?.start ? fmtTime(last.start) : '—'}
+              <span class="sleep-arrow">→</span>
+              ${last?.end ? fmtTime(last.end) : '—'}
+            </div>
+            <div class="sleep-avg-row">
+              <div class="sleep-avg-item">
+                <div class="sleep-avg-label">Priemer 7 nocí</div>
+                <div class="sleep-avg-value">${avgStr}</div>
+              </div>
+              <div class="sleep-avg-item">
+                <div class="sleep-avg-label">Počet nocí</div>
+                <div class="sleep-avg-value">${sleep.nightCount || 0}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        ${sessions.length ? `
+        <div class="sleep-chart">
+          <div class="sleep-chart-eyebrow">Posledných 7 nocí</div>
+          <div class="sleep-bars">${barsHtml}</div>
+        </div>` : ''}
+      `;
+    }
+
     function showFitnessLocked(locked) {
       document.getElementById('fitLocked').style.display = locked ? 'block' : 'none';
       document.getElementById('fitActions').style.display = locked ? 'none' : 'flex';
@@ -3150,6 +3476,7 @@
         } catch { }
       } else {
         showFitnessLocked(true);
+        renderSleep(null);
       }
 
       // Init GSI for fitness gate
