@@ -32,6 +32,21 @@ To set up the authentication and run this dashboard on your own domain:
 6. Open `index.html` and replace the `GOOGLE_CLIENT_ID` constant with your Client ID.
 7. Update the `ALLOWED_EMAIL` constant with your Google account email to restrict access manually.
 
+### 🔐 Required Vercel env vars for API protection
+
+The `/api/*` endpoints that expose personal data (gmail, calendar, spotify,
+notion, vercel-projects, config) verify a Google ID token server-side before
+returning any data. Set these in **Vercel → Settings → Environment Variables**:
+
+- `GOOGLE_CLIENT_ID` — same OAuth 2.0 client ID used by the frontend; used to
+  verify the token's `aud` claim.
+- `ALLOWED_EMAIL` — the single Google account email allowed to access the
+  dashboard.
+- `ALLOWED_ORIGINS` (optional) — comma-separated list of additional origins
+  permitted by CORS (same-origin is always allowed).
+
+Without these, every protected endpoint will return `401`.
+
 ## 🚀 Technologies Used
 
 - **HTML5 / CSS3 / Vanilla JavaScript**: Lightweight, zero-dependency frontend with custom CSS themes and grid layout.

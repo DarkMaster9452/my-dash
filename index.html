@@ -1164,7 +1164,7 @@
     ══════════════════════════════════════════ */
     async function fetchGmail() {
       try {
-        const d = await fetch('/api/gmail').then(r => r.json());
+        const d = await authFetch('/api/gmail').then(r => r.json());
         if (d.needsAuth) {
           document.getElementById('gmail-badge').textContent = '–';
           document.getElementById('gmail-body').innerHTML =
@@ -1196,7 +1196,7 @@
     ══════════════════════════════════════════ */
     async function fetchCalendar() {
       try {
-        const d = await fetch('/api/calendar').then(r => r.json());
+        const d = await authFetch('/api/calendar').then(r => r.json());
         if (d.needsAuth) {
           document.getElementById('cal-badge').textContent = '–';
           document.getElementById('cal-body').innerHTML =
@@ -1244,7 +1244,7 @@
     async function fetchSpotify() {
       try {
         if (spProgressInterval) { clearInterval(spProgressInterval); spProgressInterval = null; }
-        const d = await fetch('/api/spotify').then(r => r.json());
+        const d = await authFetch('/api/spotify').then(r => r.json());
         if (d.needsAuth) {
           document.getElementById('sp-badge').textContent = '–';
           document.getElementById('sp-body').innerHTML =
@@ -1311,7 +1311,7 @@
 
     async function fetchVercel() {
       try {
-        const d = await fetch('/api/vercel-projects').then(r => r.json());
+        const d = await authFetch('/api/vercel-projects').then(r => r.json());
         if (d.needsAuth) {
           document.getElementById('vp-badge').textContent = '–';
           document.getElementById('vp-body').innerHTML =
@@ -1432,7 +1432,7 @@
 
     async function fetchNotion() {
       try {
-        const d = await fetch('/api/notion').then(r => r.json());
+        const d = await authFetch('/api/notion').then(r => r.json());
         if (d.needsAuth || d.error === 'not_connected') {
           const msg = `<div class="err">Add NOTION_TOKEN to env vars<br><a href="https://notion.so/my-integrations" target="_blank" rel="noopener noreferrer" class="cbtn notion">Get token</a></div>`;
           document.getElementById('notion-tasks').innerHTML = msg;
@@ -2047,11 +2047,17 @@
       }, 50);
     }
 
+    /* ID token for authenticated /api/* calls. The Google credential JWT
+       lives ~1h; we store it in sessionStorage and re-prompt on 401. */
+    let _idToken = null;
+
     function handleCredentialResponse(response) {
       const payload = parseJwt(response.credential);
       if (payload.email === ALLOWED_EMAIL) {
+        _idToken = response.credential;
         sessionStorage.setItem('mb_user', JSON.stringify({
           email: payload.email, name: payload.name, picture: payload.picture,
+          idToken: response.credential,
         }));
         showApp(payload);
       } else {
@@ -2059,8 +2065,49 @@
       }
     }
 
+    // Fetch helper for protected endpoints. Adds Authorization header.
+    // On 401, clears credentials and re-prompts sign-in once.
+    let _reauthInFlight = false;
+    async function authFetch(url, opts = {}) {
+      if (!_idToken) {
+        const stored = sessionStorage.getItem('mb_user');
+        if (stored) {
+          try { _idToken = JSON.parse(stored).idToken || null; } catch {}
+        }
+      }
+      const headers = Object.assign({}, opts.headers || {});
+      if (_idToken) headers['Authorization'] = 'Bearer ' + _idToken;
+      const res = await fetch(url, { ...opts, headers });
+      if (res.status === 401) {
+        const body = await res.clone().json().catch(() => ({}));
+        // Distinguish "user not authenticated" (re-login) from "upstream not
+        // connected" (handler returned 401 with needsAuth for missing env).
+        if (body.reason || !body.error?.includes('not_connected')) {
+          handleAuthFailure();
+        }
+      }
+      return res;
+    }
+
+    function handleAuthFailure() {
+      if (_reauthInFlight) return;
+      _reauthInFlight = true;
+      _idToken = null;
+      sessionStorage.removeItem('mb_user');
+      if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+      if (_spotifyTimer) { clearInterval(_spotifyTimer); _spotifyTimer = null; }
+      if (spProgressInterval) { clearInterval(spProgressInterval); spProgressInterval = null; }
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      if (IS_CONFIGURED && window.google) {
+        try { google.accounts.id.prompt(); } catch {}
+      }
+      setTimeout(() => { _reauthInFlight = false; }, 1000);
+    }
+
     function signOut() {
       sessionStorage.removeItem('mb_user');
+      _idToken = null;
       if (IS_CONFIGURED && window.google) google.accounts.id.disableAutoSelect();
       if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
       if (_spotifyTimer) { clearInterval(_spotifyTimer); _spotifyTimer = null; }
@@ -2074,7 +2121,14 @@
     ══════════════════════════════════════════ */
     window.addEventListener('load', () => {
       const stored = sessionStorage.getItem('mb_user');
-      if (stored) { showApp(JSON.parse(stored)); return; }
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.idToken) _idToken = parsed.idToken;
+          showApp(parsed);
+          return;
+        } catch {}
+      }
 
       if (!IS_CONFIGURED) {
         document.getElementById('setup-notice').style.display = 'block';
