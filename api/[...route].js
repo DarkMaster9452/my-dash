@@ -47,8 +47,14 @@ const PROJECTS_DB_ID = '3131c3f6-0898-819e-8ad0-dcea1e623f12';
 
 function getRouteSegments(req) {
   const value = req.query?.route;
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (typeof value === 'string' && value) return [value];
+  if (Array.isArray(value) && value.length) return value.filter(Boolean);
+  if (typeof value === 'string' && value) return value.split('/').filter(Boolean);
+  // Fallback: parse from req.url (strips /api/ prefix and query string)
+  try {
+    const raw = req.url || '';
+    const path = raw.split('?')[0].replace(/^\/api\//, '');
+    if (path) return path.split('/').filter(Boolean);
+  } catch {}
   return [];
 }
 
