@@ -1,2177 +1,1566 @@
 <!DOCTYPE html>
-<html lang="sk">
-
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Morning Briefing — Martin</title>
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌅</text></svg>" />
-  <!-- Google Identity Services -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>My Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌅</text></svg>" />
+  <!-- Google Identity Services (used only by the gated Fitness card) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- D3 + TopoJSON for world map -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-  <!-- SortableJS for drag-and-drop layout -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
-  <!-- Clock font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@300;400&display=swap" rel="stylesheet">
   <style>
-    /* ══════════════════════════════════════════
-       TOKENS
-    ══════════════════════════════════════════ */
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #22263a;
-      --border: #2e3250;
-      --text: #e2e8f0;
-      --muted: #8892b0;
-      --muted2: #4a5280;
-      --c-urgent: #ff6584;
-      --c-cal: #6c63ff;
-      --c-email: #ff9f43;
-      --c-world: #54a0ff;
-      --c-ai: #43d9ad;
-      --c-tech: #ffd166;
-      --c-weather: #00d2ff;
-      --c-bday: #ff6b9d;
-      --c-notion: #ffa502;
-      --c-tasks: #ff7675;
-      --c-clients: #7bed9f;
-      --c-spotify: #1db954;
-      --c-vercel: #a29bfe;
-      --c-revenue: #43d9ad;
-      --sidebar-w: 220px;
+      --text-primary:   #FAFAFA;
+      --text-secondary: #B8B6B0;
+      --text-tertiary:  #76746E;
+      --success: #6BE3A4;
+      --warning: #F2C063;
+      --danger:  #FF6B6B;
     }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #050506;
+      background-image:
+        radial-gradient(circle at 82% 14%, rgba(224, 118, 88, 0.16), transparent 40%),
+        radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 40%);
+      filter: none;
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: max(env(safe-area-inset-top), 28px) 20px 60px;
+      max-width: 1100px; margin: 0 auto;
+      position: relative;
+      overflow-x: hidden;
+      animation: bg-drift 36s ease-in-out infinite alternate;
+    }
+    @keyframes bg-drift {
+      0%   { background-position: 82% 14%, 18% 90%; }
+      100% { background-position: 78% 18%, 22% 86%; }
+    }
+    body::after {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+      background-size: 3px 3px;
+    }
+    body > * { position: relative; z-index: 1; }
+
+    /* Mono utility */
+    .mono, .goal-ticker-row, .goal-ticker-meta, .goal-ticker-label,
+    .ring-pct, .ring-phase, .ring-clock,
+    .gm-progress-num, .gm-progress-total, .today-eyebrow, .tomorrow-eyebrow,
+    .gm-streak-num, .section-title, .ring-remaining, .ring-hours {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
     }
 
-    a { color: inherit; text-decoration: none }
+    /* ── Page title ── */
+    .dash-title {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
+      background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 480px) { .dash-title { font-size: 22px; } }
 
-    /* ══════════════════════════════════════════
-       LOGIN SCREEN
-    ══════════════════════════════════════════ */
-    #login-screen {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 100vh; gap: 24px;
-    }
-    #login-screen .login-logo { font-size: 52px }
-    #login-screen h1 { font-size: 22px; font-weight: 700; color: var(--text) }
-    #login-screen p { font-size: 13px; color: var(--muted); text-align: center; max-width: 280px; line-height: 1.5 }
-    #login-screen .access-denied { color: #ff4757; font-size: 13px; display: none }
-    #login-screen .setup-notice {
-      background: rgba(255, 165, 2, .12); border: 1px solid rgba(255, 165, 2, .3);
-      border-radius: 10px; padding: 14px 18px; max-width: 360px;
-      font-size: 12px; color: #ffa502; line-height: 1.6; display: none;
-    }
-    #login-screen .setup-notice code {
-      background: rgba(255, 165, 2, .2); padding: 1px 5px; border-radius: 4px;
-      font-family: monospace; font-size: 11px;
-    }
-    #g-signin-btn { min-height: 44px }
-
-    /* ══════════════════════════════════════════
-       APP (hidden until logged in)
-    ══════════════════════════════════════════ */
-    #app { display: none; height: 100vh; flex-direction: column }
-
-    /* ══════════════════════════════════════════
-       HEADER
-    ══════════════════════════════════════════ */
-    .header {
-      flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
-      padding: 7px 14px; border-bottom: 1px solid var(--border); gap: 14px;
-    }
-    .header-left .greeting {
-      font-size: 9px; color: var(--muted); letter-spacing: .13em; text-transform: uppercase
-    }
-    .header-left h1 { font-size: 17px; font-weight: 700; margin-top: 1px }
-    .header-center {
-      display: flex; gap: 7px; flex: 1; justify-content: center; flex-wrap: wrap;
-      align-items: center;
-    }
-    .clock {
-      font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 300;
-      color: var(--c-cal); letter-spacing: .06em; line-height: 1; font-variant-numeric: tabular-nums;
-    }
-    .chip {
-      display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px;
-      background: var(--surface); border: 1px solid var(--border); font-size: 11px; font-weight: 600;
-    }
-    .chip .chip-label {
-      color: var(--muted); font-size: 9px; text-transform: uppercase;
-      letter-spacing: .06em; font-weight: 700; margin-right: 2px;
-    }
-    .chip-bd {
-      border-color: var(--c-bday); color: var(--c-bday); background: rgba(255, 107, 157, .08);
-    }
-    .chip-bd .chip-label { color: var(--c-bday) }
-    .chip-live {
-      border-color: var(--c-ai); color: var(--c-ai); background: rgba(67,217,173,.08);
-    }
-    .chip-live .dot {
-      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-      background: var(--c-ai); animation: pulse 2s infinite;
-    }
-    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
-    .header-right {
-      display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--muted);
-    }
-    .avatar {
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 2px solid var(--border); cursor: pointer;
-    }
-    .logout-btn, .refresh-btn {
-      font-size: 9px; color: var(--muted); border: 1px solid var(--border);
-      background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer;
-      transition: border-color .15s, color .15s;
-    }
-    .logout-btn:hover { border-color: var(--c-urgent); color: var(--c-urgent) }
-    .refresh-btn:hover { border-color: var(--c-cal); color: var(--c-cal) }
-
-    /* ══════════════════════════════════════════
-       BODY ROW = sidebar + main
-    ══════════════════════════════════════════ */
-    .body-row { flex: 1; min-height: 0; display: flex; overflow: hidden; }
-
-    /* ══════════════════════════════════════════
-       SIDEBAR
-    ══════════════════════════════════════════ */
-    .sidebar {
-      width: var(--sidebar-w); flex-shrink: 0; border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; overflow-y: auto; padding: 10px;
-      gap: 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
-    }
-    .sidebar::-webkit-scrollbar { width: 3px }
-    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px }
-    .sb-section {
-      background: var(--surface); border-radius: 10px;
-      padding: 10px; border: 1px solid var(--border);
-    }
-    .sb-title {
-      font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 5px;
-    }
-    .sb-title span { font-size: 12px }
-
-    /* Quick Links */
-    .ql-list { display: flex; flex-direction: column; gap: 4px }
-    .ql-item {
-      display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px;
-      font-size: 11px; font-weight: 500; background: var(--surface2);
-      border: 1px solid transparent; transition: border-color .15s, background .15s; cursor: pointer;
-    }
-    .ql-item:hover { border-color: var(--border); background: #2a2f47 }
-    .ql-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0 }
-    .ql-label { color: var(--text); font-size: 11px }
-
-    /* Daily Focus */
-    .focus-input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 7px; color: var(--text); font-size: 12px; font-weight: 600;
-      padding: 7px 9px; outline: none; resize: none; line-height: 1.4; font-family: inherit;
-    }
-    .focus-input:focus { border-color: var(--c-cal) }
-    .focus-input::placeholder { color: var(--muted2); font-weight: 400 }
-
-    /* Scratchpad */
-    .scratch-input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 7px; color: var(--text); font-size: 11px; padding: 7px 9px;
-      outline: none; resize: none; line-height: 1.5; font-family: inherit; min-height: 80px;
-    }
-    .scratch-input:focus { border-color: var(--c-ai) }
-    .scratch-input::placeholder { color: var(--muted2) }
-
-    /* Habits */
-    .habit-list { display: flex; flex-direction: column; gap: 5px }
-    .habit-item { display: flex; align-items: center; gap: 8px; padding: 3px 0 }
-    .habit-cb {
-      width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--muted2);
-      background: transparent; appearance: none; cursor: pointer; flex-shrink: 0;
-      transition: background .15s, border-color .15s;
-    }
-    .habit-cb:checked { background: var(--c-ai); border-color: var(--c-ai) }
-    .habit-label { font-size: 11px; color: var(--text); flex: 1; cursor: pointer }
-    .habit-label.done { color: var(--muted); text-decoration: line-through }
-
-    /* Pomodoro */
-    .pomo-display {
-      text-align: center; font-size: 28px; font-weight: 700; color: var(--c-urgent);
-      letter-spacing: .05em; margin: 6px 0;
-    }
-    .pomo-mode {
-      font-size: 9px; text-align: center; color: var(--muted); margin-bottom: 8px;
-      letter-spacing: .06em; text-transform: uppercase;
-    }
-    .pomo-btns { display: flex; gap: 6px }
-    .pomo-btn {
-      flex: 1; padding: 5px; border-radius: 7px; border: 1px solid var(--border);
-      background: var(--surface2); color: var(--text); font-size: 10px; font-weight: 700;
-      cursor: pointer; transition: border-color .15s, background .15s;
-    }
-    .pomo-btn:hover { border-color: var(--c-urgent); background: rgba(255,101,132,.1) }
-    .pomo-btn.active {
-      border-color: var(--c-urgent); background: rgba(255,101,132,.15); color: var(--c-urgent);
-    }
-
-    /* Meniny */
-    .meniny-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 3px 0; font-size: 11px;
-    }
-    .meniny-day {
-      color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
-    }
-    .meniny-name { font-weight: 600; color: var(--text) }
-    .meniny-today .meniny-name { color: var(--c-bday) }
-    .meniny-today .meniny-day { color: var(--c-bday) }
-
-    /* Currency */
-    .cur-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 3px 0; font-size: 11px; border-bottom: 1px solid var(--border);
-    }
-    .cur-row:last-child { border-bottom: none }
-    .cur-sym { font-weight: 700; color: var(--text) }
-    .cur-val { color: var(--c-ai); font-weight: 600 }
-    .cur-loading { font-size: 10px; color: var(--muted); font-style: italic; padding: 4px 0 }
-
-    /* ══════════════════════════════════════════
-       MAIN CONTENT (grid area)
-    ══════════════════════════════════════════ */
-    .main {
-      flex: 1; min-width: 0; display: flex; flex-direction: column;
-      padding: 8px 10px 6px; gap: 6px; overflow: hidden;
-    }
-    .grid {
-      flex: 1; min-height: 0; display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      grid-auto-rows: minmax(120px, auto);
-      grid-auto-flow: row dense; gap: 7px;
-      overflow-y: auto;
-      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
-    }
-    .grid::-webkit-scrollbar { width: 3px }
-    .grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px }
-
+    /* ── Card chassis ── */
     .card {
-      border-radius: 11px; padding: 9px 12px; display: flex; flex-direction: column;
-      overflow: hidden; border-left: 3px solid transparent;
-      border-top: 1px solid rgba(255,255,255,.055);
-      border-right: 1px solid rgba(255,255,255,.055);
-      border-bottom: 1px solid rgba(255,255,255,.055);
-      transition: filter .15s, box-shadow .15s, outline .1s;
-      position: relative; min-height: 0;
-    }
-    .card:hover { filter: brightness(1.08) }
-
-    /* card colours */
-    .card-weather  { background: rgba(0,210,255,.10);   border-left-color: var(--c-weather) }
-    .card-urgent   { background: rgba(255,101,132,.10); border-left-color: var(--c-urgent) }
-    .card-cal      { background: rgba(108,99,255,.10);  border-left-color: var(--c-cal) }
-    .card-world    { background: rgba(84,160,255,.10);  border-left-color: var(--c-world) }
-    .card-ai       { background: rgba(67,217,173,.10);  border-left-color: var(--c-ai) }
-    .card-tech     { background: rgba(255,209,102,.10); border-left-color: var(--c-tech) }
-    .card-notion   { background: rgba(255,165,2,.09);   border-left-color: var(--c-notion) }
-    .card-tasks    { background: rgba(255,118,117,.10); border-left-color: var(--c-tasks) }
-    .card-email    { background: rgba(255,159,67,.10);  border-left-color: var(--c-email) }
-    .card-spotify  { background: rgba(29,185,84,.09);   border-left-color: var(--c-spotify) }
-    .card-vercel   { background: rgba(162,155,254,.09); border-left-color: var(--c-vercel) }
-    .card-revenue  { background: rgba(67,217,173,.09);  border-left-color: var(--c-revenue) }
-    .card-bday     { background: rgba(255,107,157,.09); border-left-color: var(--c-bday) }
-
-    /* drag handle */
-    .drag-handle {
-      display: none; cursor: grab; font-size: 14px; color: var(--muted2);
-      padding: 0 4px 0 0; line-height: 1; flex-shrink: 0; user-select: none;
-      transition: color .15s;
-    }
-    .drag-handle:hover { color: var(--text) }
-    .drag-handle:active { cursor: grabbing }
-    body.edit-mode .drag-handle { display: block }
-    body.edit-mode .card { outline: 1.5px dashed var(--muted2); cursor: default; }
-    body.edit-mode .card:hover {
-      outline-color: var(--text); box-shadow: 0 0 0 2px rgba(108,99,255,.3); filter: brightness(1.05);
-    }
-    .sortable-ghost { opacity: .35; outline: 2px dashed var(--c-cal) !important }
-    .sortable-chosen { box-shadow: 0 8px 32px rgba(0,0,0,.5) !important; z-index: 10; transform: scale(1.02) }
-
-    /* resize controls */
-    .resize-btns { display: none; gap: 3px; margin-left: auto; }
-    body.edit-mode .resize-btns { display: flex }
-    .resize-btn {
-      font-size: 9px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--border);
-      background: var(--surface2); color: var(--muted); cursor: pointer; font-weight: 700;
-      transition: border-color .1s, color .1s;
-    }
-    .resize-btn:hover { border-color: var(--c-cal); color: var(--c-cal) }
-
-    /* edge / corner resize handles */
-    .rh { display: none; position: absolute; z-index: 20; transition: background .15s, border-color .15s }
-    body.edit-mode .rh { display: block }
-    .rh-r {
-      right: 0; top: 20%; bottom: 20%; width: 10px; cursor: col-resize;
-      border-right: 3px solid var(--border); border-radius: 0 6px 6px 0; background: transparent;
-    }
-    .rh-r:hover, .rh-r.rh-on { border-right-color: var(--c-cal); background: rgba(108,99,255,.12) }
-    .rh-b {
-      bottom: 0; left: 20%; right: 20%; height: 10px; cursor: row-resize;
-      border-bottom: 3px solid var(--border); border-radius: 0 0 6px 6px; background: transparent;
-    }
-    .rh-b:hover, .rh-b.rh-on { border-bottom-color: var(--c-cal); background: rgba(108,99,255,.12) }
-    .rh-c {
-      right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize;
-      border-right: 3px solid var(--border); border-bottom: 3px solid var(--border);
-      border-radius: 0 0 8px 0; background: transparent;
-    }
-    .rh-c:hover, .rh-c.rh-on {
-      border-right-color: var(--c-cal); border-bottom-color: var(--c-cal); background: rgba(108,99,255,.15);
+      background: rgba(255, 255, 255, 0.04);
+      border: none; border-radius: 16px; padding: 20px;
+      backdrop-filter: blur(24px) saturate(1.2);
+      -webkit-backdrop-filter: blur(24px) saturate(1.2);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     }
 
-    .edit-layout-btn {
-      font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 8px;
-      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
-      cursor: pointer; transition: all .15s; white-space: nowrap;
+    /* ── Goal Ticker ── */
+    .ticker-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+    .goal-ticker {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px; border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.30) 100%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      position: relative; overflow: hidden;
     }
-    .edit-layout-btn:hover { border-color: var(--c-cal); color: var(--c-cal) }
-    body.edit-mode .edit-layout-btn {
-      border-color: var(--c-ai); color: var(--c-ai); background: rgba(67,217,173,.1);
+    .goal-ticker::after {
+      content: ''; position: absolute; top: 0; bottom: 0; left: -40%;
+      width: 30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+      animation: ticker-sweep 8s linear infinite;
+      pointer-events: none;
     }
-
-    .card-header {
-      display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-bottom: 6px;
-    }
-    .card-icon { font-size: 14px; line-height: 1 }
-    .card-title {
-      font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-    }
-    .card-title a { color: inherit; text-decoration: none }
-    .card-title a:hover { text-decoration: underline; opacity: .85 }
-
-    .badge {
-      margin-left: auto; border-radius: 20px; font-size: 9px; font-weight: 700;
-      padding: 1px 7px; border: 1px solid;
-    }
-
-    .card-weather  .card-title, .card-weather  .badge { color: var(--c-weather); border-color: var(--c-weather); background: rgba(0,210,255,.12) }
-    .card-urgent   .card-title, .card-urgent   .badge { color: var(--c-urgent);  border-color: var(--c-urgent);  background: rgba(255,101,132,.12) }
-    .card-cal      .card-title, .card-cal      .badge { color: var(--c-cal);     border-color: var(--c-cal);     background: rgba(108,99,255,.12) }
-    .card-world    .card-title, .card-world    .badge { color: var(--c-world);   border-color: var(--c-world);   background: rgba(84,160,255,.12) }
-    .card-ai       .card-title, .card-ai       .badge { color: var(--c-ai);      border-color: var(--c-ai);      background: rgba(67,217,173,.12) }
-    .card-tech     .card-title, .card-tech     .badge { color: var(--c-tech);    border-color: var(--c-tech);    background: rgba(255,209,102,.12) }
-    .card-email    .card-title, .card-email    .badge { color: var(--c-email);   border-color: var(--c-email);   background: rgba(255,159,67,.12) }
-    .card-notion   .card-title, .card-notion   .badge { color: var(--c-notion);  border-color: var(--c-notion);  background: rgba(255,165,2,.12) }
-    .card-tasks    .card-title, .card-tasks    .badge { color: var(--c-tasks);   border-color: var(--c-tasks);   background: rgba(255,118,117,.12) }
-    .card-spotify  .card-title, .card-spotify  .badge { color: var(--c-spotify); border-color: var(--c-spotify); background: rgba(29,185,84,.12) }
-    .card-vercel   .card-title, .card-vercel   .badge { color: var(--c-vercel);  border-color: var(--c-vercel);  background: rgba(162,155,254,.12) }
-    .card-revenue  .card-title, .card-revenue  .badge { color: var(--c-revenue); border-color: var(--c-revenue); background: rgba(67,217,173,.12) }
-    .card-bday     .card-title, .card-bday     .badge { color: var(--c-bday);    border-color: var(--c-bday);    background: rgba(255,107,157,.12) }
-
-    .card-body {
-      flex: 1; overflow-y: auto; min-height: 0;
-      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
-    }
-    .card-body::-webkit-scrollbar { width: 3px }
-    .card-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px }
-
-    .footer {
-      flex-shrink: 0; text-align: center; font-size: 9px; color: var(--muted);
-      padding-top: 4px; border-top: 1px solid var(--border);
-    }
-    .footer a { color: var(--c-cal) }
-
-    /* ══════════════════════════════════════════
-       SHARED / ITEM STYLES
-    ══════════════════════════════════════════ */
-    .loading { color: var(--muted); text-align: center; padding: 14px 0; opacity: .55; font-size: 11px }
-    .err {
-      font-size: 11px; color: var(--c-urgent);
-      background: rgba(255,101,132,.06); border: 1px solid rgba(255,101,132,.2);
-      border-radius: 6px; padding: 8px 10px; text-align: center;
-    }
-    .ok { color: var(--c-ai); font-size: 11px; padding: 6px 0 }
-    .cbtn {
-      display: inline-block; margin-top: 6px; padding: 4px 12px; border-radius: 10px;
-      font-size: 10px; font-weight: 600; text-decoration: none; color: #fff;
-    }
-    .cbtn.google  { background: #4285f4 }
-    .cbtn.spotify { background: var(--c-spotify) }
-    .cbtn.notion  { background: #fff; color: #000 }
-
-    /* Weather */
-    .weather-main { display: flex; align-items: center; gap: 10px; margin-bottom: 4px }
-    .w-emoji { font-size: 30px; line-height: 1 }
-    .w-temp { font-size: 26px; font-weight: 700; color: var(--c-weather); line-height: 1 }
-    .w-sub { font-size: 10px; color: var(--muted); margin-top: 2px }
-    .w-details {
-      display: flex; gap: 8px; font-size: 10px; color: var(--muted);
-      flex-wrap: wrap; margin-top: 5px;
-    }
-    .w-details span strong { color: var(--text); font-weight: 600 }
-    .forecast { display: flex; gap: 6px; margin-top: 8px }
-    .fc {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 7px; padding: 5px 8px; text-align: center; flex: 1;
-    }
-    .fc-name {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      color: var(--muted); letter-spacing: .05em;
-    }
-    .fc-ico { font-size: 16px; margin: 2px 0 }
-    .fc-t .hi { font-weight: 600; font-size: 11px }
-    .fc-t .lo { color: var(--muted); font-size: 10px; margin-left: 4px }
-
-    /* Urgent / Today's tasks */
-    .u-row {
-      display: flex; align-items: flex-start; gap: 9px; padding: 5px 0;
-      border-bottom: 1px solid rgba(255,101,132,.14);
-    }
-    .u-row:last-child { border-bottom: none }
-    .u-dot {
+    @keyframes ticker-sweep { to { left: 110%; } }
+    .goal-ticker-led { display: flex; align-items: center; }
+    .goal-ticker-led-dot {
       width: 7px; height: 7px; border-radius: 50%;
-      background: var(--c-urgent); flex-shrink: 0; margin-top: 5px;
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(107,227,164,0.7);
+      animation: led-pulse 1.6s ease-in-out infinite;
     }
-    .u-dot.cal { background: var(--c-cal) }
-    .u-dot.email { background: var(--c-email) }
-    .u-label { font-size: 12px; font-weight: 600; margin-bottom: 1px }
-    .u-sub { font-size: 10px; color: var(--muted); line-height: 1.4 }
+    @keyframes led-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.45; transform: scale(0.85); }
+    }
+    .goal-ticker-label {
+      font-size: 9.5px; font-weight: 800; letter-spacing: 0.18em;
+      color: var(--text-tertiary); text-transform: uppercase;
+    }
+    .goal-ticker-stage { flex: 1; height: 22px; position: relative; overflow: hidden; }
+    .goal-ticker-row {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; gap: 8px;
+      height: 22px; font-size: 12.5px; font-weight: 600;
+      color: var(--text-primary); white-space: nowrap;
+    }
+    .goal-ticker-status {
+      width: 18px; flex-shrink: 0; display: inline-flex; justify-content: center; align-items: center;
+      color: var(--text-tertiary);
+    }
+    .goal-ticker-status[data-status="done"]    { color: var(--success); }
+    .goal-ticker-status[data-status="pending"] { color: var(--text-tertiary); }
+    .goal-ticker-text { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .goal-ticker-meta {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      padding: 3px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+    }
+    .goal-ticker-row.is-leaving  { animation: ticker-leave 0.45s cubic-bezier(0.55, 0, 0.55, 1) forwards; }
+    .goal-ticker-row.is-entering { animation: ticker-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    @keyframes ticker-leave { from { opacity: 1; transform: translateY(0);     } to { opacity: 0; transform: translateY(-100%); } }
+    @keyframes ticker-enter { from { opacity: 0; transform: translateY(100%);  } to { opacity: 1; transform: translateY(0);     } }
+    @media (max-width: 480px) {
+      .goal-ticker { padding: 9px 12px; }
+      .goal-ticker-label { font-size: 9px; letter-spacing: 0.14em; }
+      .goal-ticker-row { font-size: 12px; }
+      .goal-ticker-meta { font-size: 10px; padding: 2px 7px; }
+    }
 
-    /* Calendar events */
-    .ev-row {
-      display: flex; align-items: flex-start; gap: 9px; padding: 5px 0;
-      border-bottom: 1px solid rgba(108,99,255,.13);
+    /* ── Day Ring ── */
+    .day-ring-wrap {
+      display: flex; align-items: center; justify-content: center;
+      gap: 26px; flex-wrap: wrap; margin-bottom: 22px;
     }
-    .ev-row:last-child { border-bottom: none }
-    .ev-time {
-      font-size: 10px; font-weight: 700; color: var(--c-cal);
-      min-width: 42px; flex-shrink: 0; padding-top: 2px;
+    .day-ring-svg-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; }
+    .day-ring-svg { width: 100%; height: 100%; display: block; }
+    .day-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+    .day-ring-fill {
+      fill: none; stroke-width: 8; stroke-linecap: round;
+      filter: url(#dayRingGlow);
+      transition: stroke 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                  stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
     }
-    .ev-title { font-size: 12px; font-weight: 500 }
-    .ev-sub { font-size: 10px; color: var(--muted); margin-top: 1px }
-    .ev-empty { font-size: 11px; color: var(--muted); font-style: italic; padding: 6px 0 }
+    .day-ring-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .ring-pct { font-size: 40px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--text-primary); }
+    .ring-phase { font-size: 9.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 5px; }
+    .ring-clock { font-size: 10.5px; color: var(--text-tertiary); margin-top: 3px; }
+    .day-ring-text { max-width: 280px; display: flex; flex-direction: column; gap: 6px; }
+    .ring-status { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .ring-remaining { font-size: 12px; color: var(--text-secondary); }
+    .ring-hours { font-size: 11px; color: var(--text-tertiary); }
+    @media (max-width: 480px) {
+      .day-ring-svg-wrap { width: 144px; height: 144px; }
+      .ring-pct { font-size: 32px; }
+      .ring-status { font-size: 13px; }
+    }
 
-    /* News */
-    .news-row { padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05) }
-    .news-row:last-child { border-bottom: none }
-    .news-title { font-size: 11px; font-weight: 600; line-height: 1.35 }
-    .news-title a { color: var(--text) }
-    .news-title a:hover { color: var(--c-cal) }
-    .news-desc {
-      font-size: 10px; color: var(--muted); line-height: 1.4; margin-top: 2px;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    /* ── Section title ── */
+    .section { margin-bottom: 22px; }
+    .section-title {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--text-tertiary);
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px;
     }
-    .news-sub { font-size: 9px; color: var(--muted); margin-top: 2px }
-    #world-map-container {
-      width: 100%; min-height: 90px; max-height: 200px;
-      margin-bottom: 6px; flex-shrink: 0;
+    .section-title::before { content: ''; width: 18px; height: 1px; background: var(--text-tertiary); opacity: 0.6; }
+    .section-title::after  { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent); }
+
+    /* ── Goal cards (TODAY + PLAN TOMORROW) ── */
+    .gm-card { margin-bottom: 14px; position: relative; overflow: hidden; transition: background 0.4s; }
+    .gm-card.gm-all-done {
+      background:
+        radial-gradient(circle at 50% 0%, rgba(107,227,164,0.10), transparent 60%),
+        rgba(255, 255, 255, 0.04);
+    }
+    .gm-header {
+      display: flex; justify-content: space-between; flex-wrap: wrap;
+      gap: 10px; margin-bottom: 14px;
+    }
+    .today-eyebrow, .tomorrow-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--text-tertiary); font-weight: 700; margin-bottom: 6px;
+    }
+    .gm-progress-row { display: flex; align-items: baseline; gap: 6px; }
+    .gm-progress-num { font-size: 42px; font-weight: 700; letter-spacing: -0.045em; line-height: 1; color: var(--text-primary); transition: color 0.4s; }
+    .gm-card.gm-all-done .gm-progress-num,
+    .gm-card.gm-all-done .gm-progress-label { color: var(--success); }
+    .gm-progress-total { font-size: 18px; color: var(--text-tertiary); }
+    .gm-progress-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.10em;
+      color: var(--text-tertiary); text-transform: uppercase; transition: color 0.4s;
+    }
+    .gm-card-tomorrow .gm-progress-row { display: none; }
+    .tomorrow-sub { font-size: 12px; color: var(--text-tertiary); }
+    .gm-tomorrow-count {
+      font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--text-tertiary); font-weight: 700;
     }
 
-    /* Notion projects */
-    .proj-row {
-      display: flex; align-items: center; gap: 8px; padding: 5px 0;
-      border-bottom: 1px solid rgba(255,165,2,.14);
+    /* Streak pill */
+    .gm-streak {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 12px; border-radius: 999px;
+      background: rgba(255,255,255,0.04); color: var(--text-tertiary);
+      border: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
+      align-self: flex-start; white-space: nowrap;
     }
-    .proj-row:last-child { border-bottom: none }
-    .proj-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0 }
-    .proj-name { font-size: 11px; font-weight: 600; flex: 1; line-height: 1.3 }
-    .proj-name a { color: var(--text) }
-    .proj-name a:hover { color: var(--c-notion) }
-    .proj-meta { font-size: 9px; color: var(--muted) }
-    .proj-phase {
-      font-size: 9px; font-weight: 700; padding: 2px 7px;
-      border-radius: 10px; border: 1px solid; white-space: nowrap;
+    .gm-streak.gm-streak-active {
+      background: rgba(242,192,99,0.10); color: var(--warning);
+      border-color: rgba(242,192,99,0.32);
     }
-    .ph-c  { color: #2ed573;  border-color: #2ed573;  background: rgba(46,213,115,.1) }
-    .ph-d  { color: #54a0ff;  border-color: #54a0ff;  background: rgba(84,160,255,.1) }
-    .ph-co { color: #a29bfe;  border-color: #a29bfe;  background: rgba(162,155,254,.1) }
-    .ph-p  { color: #636e72;  border-color: #636e72;  background: rgba(99,110,114,.1) }
-    .ph-n  { color: #8892b0;  border-color: #8892b0;  background: rgba(136,146,176,.1) }
-    .ph-r  { color: #ffd166;  border-color: #ffd166;  background: rgba(255,209,102,.1) }
-    .ph-f  { color: #ff9f43;  border-color: #ff9f43;  background: rgba(255,159,67,.1) }
+    .gm-streak-bolt { font-size: 13px; transition: filter 0.3s; }
+    .gm-streak.gm-streak-active .gm-streak-bolt {
+      filter: drop-shadow(0 0 6px rgba(242,192,99,0.6));
+    }
+    .gm-streak-num { font-weight: 700; }
+    .gm-streak-label { font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; }
 
-    /* Notion tasks */
-    .task-row {
-      display: flex; align-items: flex-start; gap: 7px; padding: 5px 0;
-      border-bottom: 1px solid rgba(255,118,117,.14);
+    /* Segmented bar */
+    .gm-bar { display: flex; gap: 4px; height: 6px; margin-bottom: 16px; }
+    .gm-bar:empty { display: none; }
+    .gm-bar-seg {
+      flex: 1; height: 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.06);
+      transition: background 0.3s, box-shadow 0.3s;
     }
-    .task-row:last-child { border-bottom: none }
-    .task-name { font-size: 11px; font-weight: 500; flex: 1; line-height: 1.3 }
-    .task-name a { color: var(--text) }
-    .task-name a:hover { color: var(--c-tasks) }
-    .task-meta { font-size: 9px; color: var(--muted); margin-top: 1px }
-    .task-pri {
-      font-size: 9px; font-weight: 700; padding: 2px 6px;
-      border-radius: 8px; border: 1px solid; white-space: nowrap; flex-shrink: 0; margin-top: 1px;
+    .gm-bar-seg.gm-bar-seg-done {
+      background: var(--success);
+      box-shadow: 0 0 6px rgba(107,227,164,0.40);
     }
-    .pri-now { color: #ff4757; border-color: #ff4757; background: rgba(255,71,87,.12) }
-    .pri-ok  { color: #ffd166; border-color: #ffd166; background: rgba(255,209,102,.12) }
-    .pri-go  { color: #43d9ad; border-color: #43d9ad; background: rgba(67,217,173,.12) }
-    .task-empty { font-size: 11px; color: var(--muted); font-style: italic; padding: 6px 0 }
 
-    /* Email */
-    .email-row { padding: 5px 0; border-bottom: 1px solid rgba(255,159,67,.13) }
-    .email-row:last-child { border-bottom: none }
-    .email-from {
-      font-size: 10px; color: var(--c-email); font-weight: 700;
-      display: flex; align-items: center; gap: 5px; margin-bottom: 1px;
+    /* Goal list */
+    .goal-list { list-style: none; }
+    .empty-state {
+      font-size: 12px; color: var(--text-tertiary); font-style: italic;
+      text-align: center; padding: 14px 0;
     }
-    .unread-dot {
-      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-      background: var(--c-urgent); flex-shrink: 0;
+    .goal-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px; margin-bottom: 6px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      transition: background 0.18s;
+      position: relative;
     }
-    .email-subj { font-size: 11px; font-weight: 500; line-height: 1.3 }
-    .email-snip {
-      font-size: 10px; color: var(--muted); opacity: .75;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .goal-row:hover { background: rgba(255,255,255,0.06); }
+    .goal-row.is-drag-over { border-top-color: var(--success); }
+    .goal-row.is-done {
+      opacity: 0.45;
+      background: rgba(107,227,164,0.04);
     }
-    .email-time { font-size: 9px; color: var(--muted); margin-top: 1px }
+    .goal-row.is-done .goal-text {
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,255,255,0.4);
+    }
+    .goal-row.is-queued {
+      background: rgba(242,192,99,0.10);
+      box-shadow: inset 3px 0 0 0 var(--warning);
+      color: #FFE2A8;
+    }
+    .goal-row.is-queued .goal-text { color: #FFE2A8; }
+    .goal-row.is-queue-flashing { animation: gm-queue-flash 0.48s ease-out; }
+    @keyframes gm-queue-flash {
+      0%   { background: rgba(255,255,255,0.035); transform: scale(1); }
+      50%  { background: rgba(242,192,99,0.32);   transform: scale(1.015); }
+      100% { background: rgba(255,255,255,0.035); transform: scale(1); }
+    }
 
-    /* Spotify */
-    .sp-status {
-      font-size: 9px; font-weight: 700; color: var(--c-spotify);
-      margin-bottom: 5px; letter-spacing: .04em;
+    .drag-handle {
+      width: 14px; cursor: grab; opacity: 0; transition: opacity 0.18s;
+      color: var(--text-tertiary); font-size: 14px;
+      letter-spacing: -2px; user-select: none; flex-shrink: 0;
     }
-    .sp-row { display: flex; gap: 10px; align-items: center }
-    .sp-art { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex-shrink: 0 }
-    .sp-ph {
-      width: 48px; height: 48px; border-radius: 6px;
-      background: var(--surface2); border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
-    }
-    .sp-track { font-size: 12px; font-weight: 600; line-height: 1.3 }
-    .sp-track a { color: var(--text) }
-    .sp-track a:hover { color: var(--c-spotify) }
-    .sp-artist { font-size: 10px; color: var(--muted) }
-    .sp-album { font-size: 9px; color: var(--muted); opacity: .7 }
-    .prog { height: 2px; background: var(--border); border-radius: 1px; margin-top: 7px }
-    .prog-fill { height: 100%; background: var(--c-spotify); border-radius: 1px; transition: width 1s linear }
-    .sp-time {
-      font-size: 9px; color: var(--muted); display: flex;
-      justify-content: space-between; margin-top: 3px;
-    }
-    .sp-recent-label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .06em; color: var(--muted); margin: 8px 0 4px;
-    }
-    .sp-rec {
-      display: flex; gap: 8px; align-items: center;
-      padding: 3px 0; border-bottom: 1px solid var(--border);
-    }
-    .sp-rec:last-child { border-bottom: none }
-    .sp-rec-art { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; flex-shrink: 0 }
-    .sp-rec-name { font-size: 10px; font-weight: 500 }
-    .sp-rec-art-name { font-size: 9px; color: var(--muted) }
-    .sp-rec-dur { font-size: 9px; color: var(--muted); margin-left: auto; flex-shrink: 0 }
+    .drag-handle:active { cursor: grabbing; }
+    .goal-row:hover .drag-handle,
+    .goal-row:hover .goal-delete { opacity: 1; }
 
-    /* Vercel */
-    .vp { display: flex; align-items: center; gap: 7px; padding: 4px 0; border-bottom: 1px solid rgba(162,155,254,.13) }
-    .vp:last-child { border-bottom: none }
-    .vp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0 }
-    .vp-dot.ready    { background: var(--c-ai) }
-    .vp-dot.building { background: var(--c-tech); animation: pulse 1s infinite }
-    .vp-dot.error    { background: var(--c-urgent) }
-    .vp-dot.unknown  { background: var(--muted) }
-    .vp-name {
-      font-size: 11px; font-weight: 500; flex: 1;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .gm-cb {
+      appearance: none; -webkit-appearance: none;
+      width: 22px; height: 22px; border-radius: 7px;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.25);
+      cursor: pointer; flex-shrink: 0;
+      position: relative;
+      transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
     }
-    .vp-name a { color: var(--text) }
-    .vp-name a:hover { color: var(--c-vercel) }
-    .vp-state { font-size: 9px; color: var(--muted); flex-shrink: 0 }
+    .gm-cb:checked {
+      background: var(--success); border-color: var(--success);
+      box-shadow: 0 0 12px rgba(107,227,164,0.40);
+    }
+    .gm-cb:checked::after {
+      content: '✓'; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #0A0A0B; font-size: 14px; font-weight: 800;
+      animation: cb-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .gm-cb:disabled { cursor: not-allowed; opacity: 0.55; }
+    @keyframes cb-pop {
+      0%   { transform: scale(0) rotate(-12deg); }
+      100% { transform: scale(1) rotate(0); }
+    }
 
-    /* Revenue */
-    .rev-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 7px;
+    .goal-text {
+      flex: 1; font-size: 14px; color: var(--text-primary); line-height: 1.4;
+      outline: none; word-break: break-word;
     }
-    .rev-block {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 7px 10px;
+    .goal-text[contenteditable="true"] {
+      outline: 1px solid rgba(255,255,255,0.22);
+      border-radius: 4px; padding: 2px 4px;
     }
-    .rev-block-label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .07em; color: var(--muted); margin-bottom: 3px;
-    }
-    .rev-block-amount {
-      font-size: 18px; font-weight: 300; color: var(--c-revenue);
-      line-height: 1; font-variant-numeric: tabular-nums;
-    }
-    .rev-block-amount sup { font-size: 11px; vertical-align: super }
-    .rev-clients { display: flex; flex-direction: column; gap: 2px }
-    .rev-client-row {
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 10px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.04);
-    }
-    .rev-client-row:last-child { border-bottom: none }
-    .rev-client-name {
-      color: var(--muted); white-space: nowrap; overflow: hidden;
-      text-overflow: ellipsis; flex: 1; margin-right: 6px;
-    }
-    .rev-client-val { color: var(--c-revenue); font-weight: 600; white-space: nowrap }
 
-    /* ══════════════════════════════════════════
-       MOBILE
-    ══════════════════════════════════════════ */
-    @media (max-width: 1023px) {
-      #app { height: auto }
-      .body-row { flex-direction: column }
-      .sidebar {
-        width: 100%; border-right: none; border-bottom: 1px solid var(--border);
-        flex-direction: row; flex-wrap: wrap; gap: 8px; padding: 10px;
-      }
-      .sb-section { min-width: 200px; flex: 1 }
-      .main { padding: 10px 14px 50px }
-      .grid {
-        display: flex; flex-direction: column; gap: 14px;
-        overflow-y: visible;
-      }
-      .card {
-        background: var(--surface); border: 1px solid var(--border);
-        border-left: 4px solid transparent; border-radius: 12px; padding: 16px;
-      }
-      .card-weather  { border-left-color: var(--c-weather) }
-      .card-urgent   { border-left-color: var(--c-urgent) }
-      .card-cal      { border-left-color: var(--c-cal) }
-      .card-world    { border-left-color: var(--c-world) }
-      .card-ai       { border-left-color: var(--c-ai) }
-      .card-tech     { border-left-color: var(--c-tech) }
-      .card-email    { border-left-color: var(--c-email) }
-      .card-notion   { border-left-color: var(--c-notion) }
-      .card-tasks    { border-left-color: var(--c-tasks) }
-      .card-spotify  { border-left-color: var(--c-spotify) }
-      .card-vercel   { border-left-color: var(--c-vercel) }
-      .card-revenue  { border-left-color: var(--c-revenue) }
-      .card-body { display: block }
-      .card-title { font-size: 11px }
-      .card-icon { font-size: 18px }
-      .badge { font-size: 11px; padding: 2px 9px }
-      .clock { font-size: 18px }
-      body.edit-mode .rh, body.edit-mode .resize-btns { display: none }
+    .gm-queue-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 13px; color: var(--text-tertiary); opacity: 0.55;
+      padding: 4px; flex-shrink: 0;
+      transition: color 0.18s, opacity 0.18s, transform 0.18s;
     }
+    .gm-queue-btn:hover { opacity: 1; }
+    .gm-queue-btn.is-active {
+      color: var(--warning); opacity: 1;
+      filter: drop-shadow(0 0 4px rgba(242,192,99,0.65));
+    }
+    .gm-queue-btn:disabled { cursor: not-allowed; opacity: 0.3; }
+
+    .goal-delete {
+      background: none; border: none; cursor: pointer;
+      font-size: 16px; color: var(--text-tertiary); opacity: 0.5;
+      padding: 4px 6px; flex-shrink: 0;
+      transition: color 0.18s, opacity 0.18s;
+    }
+    .goal-delete:hover { color: var(--danger); opacity: 1; }
+
+    /* Show-more toggle */
+    .show-more-toggle {
+      width: 100%; padding: 8px; margin-top: 4px;
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: 10px; background: transparent;
+      color: var(--text-tertiary); font-size: 11px;
+      cursor: pointer; transition: border-color 0.18s, color 0.18s;
+    }
+    .show-more-toggle:hover { border-color: rgba(255,255,255,0.25); color: var(--text-primary); }
+
+    /* Push button */
+    .gm-push-btn {
+      width: 100%; padding: 10px;
+      border: 1px dashed rgba(255,255,255,0.14);
+      border-radius: 10px; background: transparent;
+      color: var(--text-tertiary); font-size: 12px;
+      cursor: pointer; margin-top: 6px; margin-bottom: 4px;
+      transition: border-color 0.18s, color 0.18s;
+    }
+    .gm-push-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text-primary); }
+
+    /* Quick-add row */
+    .gm-input-wrap {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .goal-input {
+      flex: 1; min-width: 150px;
+      padding: 11px 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.04); color: var(--text-primary);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px; font-family: inherit;
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .goal-input:focus { border-color: rgba(255,255,255,0.28); }
+    .goal-input::placeholder { color: var(--text-tertiary); }
+
+    .goal-add-btn {
+      padding: 11px 20px; border: none; border-radius: 12px;
+      background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+      color: #0A0A0B; font-weight: 700; font-size: 13px;
+      cursor: pointer;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.7),
+        0 4px 10px rgba(0,0,0,0.3);
+      transition: transform 0.15s, filter 0.15s;
+    }
+    .goal-add-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+    .goal-polish-btn {
+      padding: 11px 16px; border-radius: 12px;
+      background: rgba(255,255,255,0.04); color: var(--text-primary);
+      border: 1px solid rgba(255,255,255,0.10);
+      font-weight: 600; font-size: 13px;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.18s;
+    }
+    .goal-polish-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.22); }
+
+    .polish-status {
+      width: 100%; font-size: 11px; color: var(--text-tertiary);
+      margin-top: 8px; min-height: 14px;
+    }
+    .polish-status.is-error { color: var(--danger); }
+
+    /* ── Fitness card ── */
+    .fit-card { padding: 22px; }
+    .fit-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
+    }
+    .fit-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--text-tertiary); font-weight: 700;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .fit-goal {
+      font-size: 11px; letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .fit-progress-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 14px; }
+    .fit-progress-num {
+      font-size: 42px; font-weight: 700; letter-spacing: -0.045em;
+      line-height: 1; color: var(--text-primary);
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .fit-progress-total { font-size: 18px; color: var(--text-tertiary); font-family: ui-monospace, "SF Mono", monospace; }
+    .fit-progress-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.10em;
+      color: var(--text-tertiary); text-transform: uppercase;
+    }
+    .fit-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; margin-bottom: 18px; }
+    .fit-bar-fill { height: 100%; background: linear-gradient(90deg, #6BE3A4, #F2C063); border-radius: 3px; transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1); box-shadow: 0 0 8px rgba(107,227,164,0.35); }
+
+    .fit-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      margin-bottom: 16px;
+    }
+    .fit-stat {
+      background: rgba(0,0,0,0.25); border-radius: 12px; padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .fit-stat-label {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--text-tertiary); margin-bottom: 4px;
+      font-family: ui-monospace, "SF Mono", monospace;
+    }
+    .fit-stat-value {
+      font-size: 16px; font-weight: 700; color: var(--text-primary);
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .fit-stat-sub { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; font-family: ui-monospace, "SF Mono", monospace; }
+    .fit-stat-value.is-success { color: var(--success); }
+    .fit-stat-value.is-warning { color: var(--warning); }
+    .fit-stat-value.is-danger  { color: var(--danger); }
+
+    .fit-rec {
+      background: linear-gradient(135deg, rgba(107,227,164,0.10), rgba(242,192,99,0.06));
+      border: 1px solid rgba(107,227,164,0.18);
+      border-radius: 12px; padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .fit-rec-eyebrow {
+      font-size: 9.5px; font-weight: 800; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--success);
+      margin-bottom: 6px;
+      font-family: ui-monospace, "SF Mono", monospace;
+    }
+    .fit-rec-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .fit-rec-body { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+    .fit-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .fit-btn {
+      padding: 9px 16px; border-radius: 10px;
+      background: rgba(255,255,255,0.04); color: var(--text-primary);
+      border: 1px solid rgba(255,255,255,0.10);
+      font-weight: 600; font-size: 12px; cursor: pointer;
+      transition: background 0.18s, border-color 0.18s;
+      font-family: inherit;
+    }
+    .fit-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.22); }
+    .fit-btn.is-primary {
+      background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+      color: #0A0A0B; border-color: transparent;
+    }
+    .fit-locked {
+      text-align: center; padding: 22px;
+      font-size: 12px; color: var(--text-tertiary);
+    }
+    .fit-locked a { color: var(--success); text-decoration: none; }
+    .fit-loading { color: var(--text-tertiary); font-size: 12px; font-style: italic; padding: 10px 0; }
+    .fit-err {
+      font-size: 11px; color: var(--danger);
+      background: rgba(255,107,107,0.06); border: 1px solid rgba(255,107,107,0.18);
+      border-radius: 8px; padding: 8px 10px;
+    }
+
+    /* ── Login overlay (only for fitness gate, lightweight) ── */
+    #login-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(5,5,6,0.92); backdrop-filter: blur(20px);
+      align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+      padding: 20px;
+    }
+    #login-overlay.is-open { display: flex; }
+    #login-overlay h2 {
+      font-size: 24px; font-weight: 700; letter-spacing: -0.02em;
+      background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    #login-overlay p { font-size: 13px; color: var(--text-secondary); text-align: center; max-width: 320px; line-height: 1.5; }
+    #login-overlay .access-denied { color: var(--danger); font-size: 13px; display: none; }
+    #login-overlay button.close {
+      position: absolute; top: 24px; right: 24px;
+      background: transparent; border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px; padding: 6px 12px; color: var(--text-tertiary);
+      cursor: pointer; font-size: 11px;
+    }
+
+    /* ── Logout button (top-right when logged in) ── */
+    #logout-btn {
+      position: absolute; top: 28px; right: 20px;
+      font-size: 10px; padding: 5px 10px;
+      background: rgba(255,255,255,0.04); color: var(--text-tertiary);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
+      cursor: pointer;
+      font-family: ui-monospace, "SF Mono", monospace; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    #logout-btn:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.22); }
   </style>
 </head>
-
 <body>
 
-  <!-- ═══════════════════════════════════════════
-       LOGIN SCREEN
-  ═══════════════════════════════════════════ -->
-  <div id="login-screen">
-    <div class="login-logo">🌅</div>
-    <h1>Morning Briefing</h1>
-    <p>Prihlás sa cez Google účet na pokračovanie. <strong>Prístup je obmedzený.</strong></p>
-    <div id="g-signin-btn"></div>
-    <div id="access-denied" class="access-denied">⛔ Prístup zamietnutý. Tento dashboard je súkromný.</div>
-    <div id="setup-notice" class="setup-notice">
-      ⚙️ <strong>Google Client ID nie je nastavené.</strong><br />
-      Choď na <strong>console.cloud.google.com → APIs &amp; Services → Credentials</strong><br />
-      Vytvor <strong>OAuth 2.0 Client ID</strong> (Web application)<br />
-      Authorized origin: <code>https://darkmaster9452.github.io</code><br />
-      Potom nahraď <code>YOUR_GOOGLE_CLIENT_ID</code> v kóde.
+  <button id="logout-btn" onclick="signOut()" style="display:none">Sign out</button>
+
+  <h1 class="dash-title">My Dashboard</h1>
+
+  <!-- ── Goal Ticker ── -->
+  <div class="ticker-row">
+    <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
+      <div class="goal-ticker-led"><span class="goal-ticker-led-dot"></span></div>
+      <div class="goal-ticker-label">GOALS</div>
+      <div class="goal-ticker-stage" id="goalTickerStage">
+        <div class="goal-ticker-row">
+          <span class="goal-ticker-status" data-status="">—</span>
+          <span class="goal-ticker-text">Loading…</span>
+        </div>
+      </div>
+      <div class="goal-ticker-meta" id="goalTickerMeta">0/0</div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════
-       MAIN APP
-  ═══════════════════════════════════════════ -->
-  <div id="app">
-
-    <!-- HEADER -->
-    <header class="header">
-      <div class="header-left">
-        <div class="greeting" id="greeting">Good morning, Martin ☀️</div>
-        <h1 id="dateStr">Loading…</h1>
+  <!-- ── Day Ring ── -->
+  <div class="day-ring-wrap">
+    <div class="day-ring-svg-wrap">
+      <svg class="day-ring-svg" viewBox="0 0 120 120">
+        <defs>
+          <filter id="dayRingGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.6" />
+          </filter>
+        </defs>
+        <circle class="day-ring-track" cx="60" cy="60" r="52" />
+        <circle id="dayRingFill" class="day-ring-fill" cx="60" cy="60" r="52"
+                transform="rotate(-90 60 60)"
+                stroke="#FFD89E"
+                stroke-dasharray="326.7256359733385"
+                stroke-dashoffset="326.7256359733385" />
+      </svg>
+      <div class="day-ring-center">
+        <div class="ring-pct" id="ringPct">—</div>
+        <div class="ring-phase" id="ringPhase">SLEEPING</div>
+        <div class="ring-clock" id="ringClock">--:-- --</div>
       </div>
-      <div class="header-center">
-        <div class="clock" id="clock">--:--:--</div>
-        <div class="chip"><span>📅</span><span class="chip-label">Týždeň</span><span id="chip-week">–</span></div>
-        <div class="chip"><span>📍</span><span class="chip-label">Miesto</span>Rajec, SK</div>
-        <div class="chip chip-live"><span class="dot"></span><span class="chip-label">Live</span><span id="lastUp">–</span></div>
+    </div>
+    <div class="day-ring-text">
+      <div class="ring-status" id="ringStatus">😴 Still sleeping</div>
+      <div class="ring-remaining" id="ringRemaining">—</div>
+      <div class="ring-hours">8:00 AM – 12:00 AM</div>
+    </div>
+  </div>
+
+  <!-- ── To Do List section ── -->
+  <div class="section">
+    <div class="section-title">To Do List</div>
+
+    <!-- TODAY card -->
+    <div class="card gm-card" id="todayCard">
+      <div class="gm-header">
+        <div>
+          <div class="today-eyebrow" id="todayLabel">Today — —</div>
+          <div class="gm-progress-row">
+            <span class="gm-progress-num" id="gmProgressNum">0</span>
+            <span class="gm-progress-total" id="gmProgressTotal">/ 0</span>
+            <span class="gm-progress-label" id="gmProgressLabel">no goals yet</span>
+          </div>
+        </div>
+        <div class="gm-streak" id="gmStreak">
+          <span class="gm-streak-bolt">⚡</span>
+          <span class="gm-streak-num" id="gmStreakNum">0</span>
+          <span class="gm-streak-label">day streak</span>
+        </div>
       </div>
-      <div class="header-right">
-        <button class="refresh-btn" onclick="refreshAll()">↻ Refresh</button>
-        <button class="edit-layout-btn" id="edit-layout-btn" onclick="toggleEditMode()">✏️ Edit Layout</button>
-        <img id="user-avatar" class="avatar" src="" alt="avatar" style="display:none" />
-        <button class="logout-btn" onclick="signOut()">Odhlásiť</button>
+      <div class="gm-bar" id="gmBar"></div>
+      <ul id="goalList" class="goal-list gm-list"></ul>
+      <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
+      <button class="gm-push-btn" id="gmPushBtn" style="display:none">Push remaining to tomorrow</button>
+      <div class="gm-input-wrap goal-input-wrap">
+        <input id="goalInput" class="goal-input" placeholder="Add a goal for today…" />
+        <button id="goalAddBtn" class="goal-add-btn">+ Add</button>
+        <button id="goalPolishBtn" class="goal-polish-btn">✨ Polish</button>
+        <div id="polishStatus" class="polish-status"></div>
       </div>
-    </header>
+    </div>
 
-    <!-- BODY ROW -->
-    <div class="body-row">
-
-      <!-- ═══════ SIDEBAR ═══════ -->
-      <aside class="sidebar">
-
-        <!-- Quick Links -->
-        <div class="sb-section">
-          <div class="sb-title"><span>⚡</span>Quick Links</div>
-          <div class="ql-list">
-            <a class="ql-item" href="https://notion.so" target="_blank" rel="noopener noreferrer"><span class="ql-icon">📝</span><span class="ql-label">Notion</span></a>
-            <a class="ql-item" href="https://github.com/DarkMaster9452" target="_blank" rel="noopener noreferrer"><span class="ql-icon">🐙</span><span class="ql-label">GitHub</span></a>
-            <a class="ql-item" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer"><span class="ql-icon">▲</span><span class="ql-label">Vercel</span></a>
-            <a class="ql-item" href="https://mail.google.com" target="_blank" rel="noopener noreferrer"><span class="ql-icon">📬</span><span class="ql-label">Gmail</span></a>
-            <a class="ql-item" href="https://calendar.google.com" target="_blank" rel="noopener noreferrer"><span class="ql-icon">📆</span><span class="ql-label">Google Calendar</span></a>
-            <a class="ql-item" href="https://figma.com" target="_blank" rel="noopener noreferrer"><span class="ql-icon">🎨</span><span class="ql-label">Figma</span></a>
-            <a class="ql-item" href="https://chatgpt.com" target="_blank" rel="noopener noreferrer"><span class="ql-icon">🤖</span><span class="ql-label">ChatGPT</span></a>
-            <a class="ql-item" href="https://oskkp.sk" target="_blank" rel="noopener noreferrer"><span class="ql-icon">⚽</span><span class="ql-label">oskkp.sk</span></a>
-          </div>
+    <!-- PLAN TOMORROW card -->
+    <div class="card gm-card gm-card-tomorrow" id="tomorrowCard">
+      <div class="gm-header">
+        <div>
+          <div class="tomorrow-eyebrow" id="tomorrowLabel">Plan tomorrow — —</div>
+          <div class="tomorrow-sub">Write tonight, locked until 6 AM.</div>
         </div>
+        <div class="gm-tomorrow-count" id="gmTomorrowCount">0 planned</div>
+      </div>
+      <ul id="tomorrowList" class="goal-list gm-list"></ul>
+      <div id="tomorrowEmpty" class="empty-state">Nothing planned for tomorrow yet</div>
+      <div class="gm-input-wrap goal-input-wrap">
+        <input id="tomorrowInput" class="goal-input" placeholder="Plan a goal for tomorrow…" />
+        <button id="tomorrowAddBtn" class="goal-add-btn">+ Add</button>
+        <button id="tomorrowPolishBtn" class="goal-polish-btn">✨ Polish</button>
+        <div id="tomorrowStatus" class="polish-status"></div>
+      </div>
+    </div>
+  </div>
 
-        <!-- Daily Focus -->
-        <div class="sb-section">
-          <div class="sb-title"><span>🎯</span>Úloha dňa</div>
-          <textarea id="daily-focus" class="focus-input" rows="2" placeholder="Čo musíš dnes URČITE spraviť?"></textarea>
+  <!-- ── Fitness section ── -->
+  <div class="section">
+    <div class="section-title">Run Coach — 10K in a Month</div>
+    <div class="card fit-card" id="fitCard">
+      <div class="fit-header">
+        <div>
+          <div class="fit-eyebrow" id="fitEyebrow">Fitness — locked</div>
+          <div class="fit-goal" id="fitGoal">Target: 10.00 km · 30-day plan</div>
         </div>
+        <div class="fit-goal" id="fitDaysLeft">— days to go</div>
+      </div>
 
-        <!-- Scratchpad -->
-        <div class="sb-section">
-          <div class="sb-title"><span>📋</span>Scratchpad</div>
-          <textarea id="scratchpad" class="scratch-input" rows="4" placeholder="Rýchle poznámky, čísla, nápady…"></textarea>
+      <div class="fit-progress-row">
+        <span class="fit-progress-num" id="fitProgressNum">0</span>
+        <span class="fit-progress-total" id="fitProgressTotal">/ 10 km</span>
+        <span class="fit-progress-label" id="fitProgressLabel">longest run so far</span>
+      </div>
+      <div class="fit-bar"><div class="fit-bar-fill" id="fitBarFill" style="width:0%"></div></div>
+
+      <div class="fit-stats">
+        <div class="fit-stat">
+          <div class="fit-stat-label">Sleep · last night</div>
+          <div class="fit-stat-value" id="fitSleep">—</div>
+          <div class="fit-stat-sub" id="fitSleepSub">no data</div>
         </div>
-
-        <!-- Habit Tracker -->
-        <div class="sb-section">
-          <div class="sb-title"><span>✅</span>Návyky dnes</div>
-          <div class="habit-list" id="habit-list">
-            <div class="habit-item"><input type="checkbox" class="habit-cb" data-habit="0" id="h0"><label class="habit-label" for="h0">💧 Vypiť 2l vody</label></div>
-            <div class="habit-item"><input type="checkbox" class="habit-cb" data-habit="1" id="h1"><label class="habit-label" for="h1">🏃 30 min. pohyb</label></div>
-            <div class="habit-item"><input type="checkbox" class="habit-cb" data-habit="2" id="h2"><label class="habit-label" for="h2">📖 Čítanie</label></div>
-            <div class="habit-item"><input type="checkbox" class="habit-cb" data-habit="3" id="h3"><label class="habit-label" for="h3">🧘 Žiadny late-night scroll</label></div>
-            <div class="habit-item"><input type="checkbox" class="habit-cb" data-habit="4" id="h4"><label class="habit-label" for="h4">💻 1 commit alebo task</label></div>
-          </div>
+        <div class="fit-stat">
+          <div class="fit-stat-label">7-day km</div>
+          <div class="fit-stat-value" id="fit7dKm">—</div>
+          <div class="fit-stat-sub" id="fit7dSub">no runs</div>
         </div>
-
-        <!-- Pomodoro -->
-        <div class="sb-section">
-          <div class="sb-title"><span>🍅</span>Pomodoro</div>
-          <div class="pomo-mode" id="pomo-mode">PRÁCA</div>
-          <div class="pomo-display" id="pomo-display">25:00</div>
-          <div class="pomo-btns">
-            <button class="pomo-btn active" id="pomo-start" onclick="pomodoroToggle()">▶ Štart</button>
-            <button class="pomo-btn" onclick="pomodoroReset()">↺ Reset</button>
-          </div>
+        <div class="fit-stat">
+          <div class="fit-stat-label">Last run</div>
+          <div class="fit-stat-value" id="fitLastKm">—</div>
+          <div class="fit-stat-sub" id="fitLastSub">never</div>
         </div>
+      </div>
 
-        <!-- Meniny -->
-        <div class="sb-section">
-          <div class="sb-title"><span>🌸</span>Meniny</div>
-          <div id="meniny-container">
-            <div class="cur-loading">Načítavam…</div>
-          </div>
-        </div>
+      <div class="fit-rec" id="fitRec" style="display:none">
+        <div class="fit-rec-eyebrow" id="fitRecEyebrow">Today's plan</div>
+        <div class="fit-rec-title" id="fitRecTitle">—</div>
+        <div class="fit-rec-body" id="fitRecBody">—</div>
+      </div>
+      <div class="fit-locked" id="fitLocked">
+        <p>Sign in to Google to connect your sleep + Strava and get today's coaching note.</p>
+        <p style="margin-top:10px"><button class="fit-btn is-primary" onclick="openLogin()">Sign in with Google</button></p>
+      </div>
+      <div class="fit-actions" id="fitActions" style="display:none">
+        <button class="fit-btn is-primary" id="fitCoachBtn">🧠 Get today's coach note</button>
+        <button class="fit-btn" id="fitRefreshBtn">↻ Refresh data</button>
+        <a class="fit-btn" href="/api/auth/strava-redirect" id="fitStravaBtn">⚙ Reconnect Strava</a>
+      </div>
+    </div>
+  </div>
 
-        <!-- Currency / Crypto -->
-        <div class="sb-section">
-          <div class="sb-title"><span>💱</span>Kurzy</div>
-          <div id="currency-list">
-            <div class="cur-loading">Načítavam…</div>
-          </div>
-        </div>
-
-      </aside>
-
-      <!-- ═══════ MAIN GRID ═══════ -->
-      <div class="main">
-        <div class="grid" id="cards-grid">
-
-          <!-- WEATHER -->
-          <div class="card card-weather" data-card="card-weather">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">🌤️</span>
-              <span class="card-title">Počasie · Rajec, SK</span>
-              <span class="badge" id="w-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="w-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- URGENT / TODAY'S TASKS -->
-          <div class="card card-urgent" data-card="card-urgent">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">🔔</span>
-              <span class="card-title">Dnes treba</span>
-              <span class="badge" id="tt-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="tt-body"><div class="loading">Načítavam…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- CALENDAR -->
-          <div class="card card-cal" data-card="card-cal">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">📆</span>
-              <span class="card-title"><a href="https://calendar.google.com" target="_blank" rel="noopener noreferrer">Dnešný kalendár</a></span>
-              <span class="badge" id="cal-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="cal-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- WORLD NEWS (with map) -->
-          <div class="card card-world" data-card="card-world">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">🌍</span>
-              <span class="card-title">Svet</span>
-              <span class="badge" id="news-world-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div id="world-map-container"></div>
-              <div id="panel-world"><div class="loading">Loading…</div></div>
-            </div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- AI NEWS -->
-          <div class="card card-ai" data-card="card-ai">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">🤖</span>
-              <span class="card-title">AI novinky</span>
-              <span class="badge" id="news-ai-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="panel-ai"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- TECH NEWS -->
-          <div class="card card-tech" data-card="card-tech">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">💻</span>
-              <span class="card-title">Tech / Web Dev</span>
-              <span class="badge" id="news-tech-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="panel-tech"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- NOTION PROJECTS -->
-          <div class="card card-notion" data-card="card-notion">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">📂</span>
-              <span class="card-title"><a href="https://notion.so" target="_blank" rel="noopener noreferrer">Projekty · Notion</a></span>
-              <span class="badge" id="notion-proj-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="notion-projects"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- NOTION TASKS -->
-          <div class="card card-tasks" data-card="card-tasks">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">✅</span>
-              <span class="card-title"><a href="https://notion.so" target="_blank" rel="noopener noreferrer">Otvorené úlohy · Notion</a></span>
-              <span class="badge" id="notion-task-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="notion-tasks"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- EMAIL -->
-          <div class="card card-email" data-card="card-email">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">📬</span>
-              <span class="card-title"><a href="https://mail.google.com" target="_blank" rel="noopener noreferrer">Gmail inbox</a></span>
-              <span class="badge" id="gmail-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="gmail-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- SPOTIFY -->
-          <div class="card card-spotify" data-card="card-spotify">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">🎵</span>
-              <span class="card-title">Spotify</span>
-              <span class="badge" id="sp-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="sp-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- VERCEL -->
-          <div class="card card-vercel" data-card="card-vercel">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">▲</span>
-              <span class="card-title"><a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel Projects</a></span>
-              <span class="badge" id="vp-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="vp-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-          <!-- REVENUE -->
-          <div class="card card-revenue" data-card="card-revenue">
-            <div class="card-header">
-              <span class="drag-handle">⠿</span>
-              <span class="card-icon">💰</span>
-              <span class="card-title">Revenue</span>
-              <span class="badge" id="rev-badge">–</span>
-              <div class="resize-btns">
-                <button class="resize-btn" onclick="resizeCard(this,'-')">−</button>
-                <button class="resize-btn" onclick="resizeCard(this,'+')">+</button>
-              </div>
-            </div>
-            <div class="card-body" id="rev-body"><div class="loading">Loading…</div></div>
-            <div class="rh rh-r"></div><div class="rh rh-b"></div><div class="rh rh-c"></div>
-          </div>
-
-        </div><!-- /grid -->
-
-        <footer class="footer">
-          Morning Briefing · Open-Meteo · Gmail · GCal · Notion · Spotify · Vercel ·
-          <a href="https://github.com/DarkMaster9452/morning-briefing" target="_blank" rel="noopener noreferrer">GitHub</a>
-        </footer>
-      </div><!-- /main -->
-
-    </div><!-- /body-row -->
-  </div><!-- /app -->
+  <!-- ── Login overlay (Google) ── -->
+  <div id="login-overlay">
+    <button class="close" onclick="closeLogin()">Close</button>
+    <h2>Sign in</h2>
+    <p>Sign in with your Google account to unlock the Run Coach. <strong>Access is restricted.</strong></p>
+    <div id="g-signin-btn"></div>
+    <div id="access-denied" class="access-denied">⛔ Access denied. This dashboard is private.</div>
+  </div>
 
   <script>
-    /* ══════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════
        CONSTANTS
-    ══════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════ */
+    const ANTHROPIC_API_KEY = ''; // optional: enables ✨ Polish (in-browser). Coach note uses /api/coach instead.
     const ALLOWED_EMAIL = 'strananekm@gmail.com';
     const GOOGLE_CLIENT_ID = '284055222925-4g256ti1a3iippj60n4um7lu6trbr128.apps.googleusercontent.com';
     const IS_CONFIGURED = !GOOGLE_CLIENT_ID.startsWith('YOUR_');
 
-    const SK_DAYS_LONG = ['Nedeľa','Pondelok','Utorok','Streda','Štvrtok','Piatok','Sobota'];
-    const SK_MONTHS = ['januára','februára','marca','apríla','mája','júna','júla','augusta','septembra','októbra','novembra','decembra'];
-    const SK_DAYS_SHORT = ['Ne','Po','Ut','St','Št','Pi','So'];
-    const p = n => String(n).padStart(2, '0');
+    const WAKE_HOUR = 8;
+    const SLEEP_HOUR = 24;
 
-    /* ══════════════════════════════════════════
-       CLOCK + DATE + WEEK NUMBER
-    ══════════════════════════════════════════ */
-    function isoWeek(d) {
-      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-      const day = date.getUTCDay() || 7;
-      date.setUTCDate(date.getUTCDate() + 4 - day);
-      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-      return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+    const RUN_GOAL_KM = 10;
+    const RUN_GOAL_DAYS = 30;
+
+    /* ══════════════════════════════════════════════════════════════════
+       LOCALSTORAGE HELPERS
+    ══════════════════════════════════════════════════════════════════ */
+    function storeGet(key) {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
     }
-    function tick() {
+    function storeSet(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+      if (key.startsWith('goals:')) {
+        window.dispatchEvent(new CustomEvent('goals-changed'));
+      }
+    }
+    function storeDelete(key) { localStorage.removeItem(key); }
+    function storeListKeys(prefix) {
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) out.push(k);
+      }
+      return out;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       DATE LOGIC — 6 AM day boundary
+    ══════════════════════════════════════════════════════════════════ */
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+    function getActiveDateString() {
       const n = new Date();
-      const c = document.getElementById('clock');
-      if (c) c.textContent = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
-      const ds = document.getElementById('dateStr');
-      if (ds) ds.textContent = `${SK_DAYS_LONG[n.getDay()]}, ${n.getDate()}. ${SK_MONTHS[n.getMonth()]} ${n.getFullYear()}`;
-      const cw = document.getElementById('chip-week');
-      if (cw) cw.textContent = isoWeek(n);
+      if (n.getHours() < 6) { const y = new Date(n); y.setDate(y.getDate() - 1); return ymd(y); }
+      return ymd(n);
     }
-    setInterval(tick, 1000); tick();
-
-    /* ══════════════════════════════════════════
-       GLOBAL CACHES (for "Today's Tasks" aggregation)
-    ══════════════════════════════════════════ */
-    let _tdCal = [], _tdGmail = [], _tdNotion = { tasks: [] };
-
-    /* ══════════════════════════════════════════
-       WEATHER
-    ══════════════════════════════════════════ */
-    async function fetchWeather() {
-      try {
-        const d = await fetch('/api/weather').then(r => r.json());
-        if (d.error) throw new Error(d.error);
-        document.getElementById('w-badge').textContent = `${d.temp}°C`;
-
-        const fc = (d.forecast || []).map(f => `
-          <div class="fc">
-            <div class="fc-name">${f.name}</div>
-            <div class="fc-ico">${f.icon}</div>
-            <div class="fc-t"><span class="hi">${f.hi}°</span><span class="lo">${f.lo}°</span></div>
-          </div>`).join('');
-
-        document.getElementById('w-body').innerHTML = `
-          <div class="weather-main">
-            <div class="w-emoji">${d.icon}</div>
-            <div>
-              <div class="w-temp">${d.temp}°C</div>
-              <div class="w-sub">${d.desc} · pocitová <strong>${d.feels_like}°</strong></div>
-            </div>
-          </div>
-          <div class="w-details">
-            <span>💨 <strong>${d.wind} km/h</strong></span>
-            <span>💧 <strong>${d.humidity}%</strong></span>
-          </div>
-          ${fc ? `<div class="forecast">${fc}</div>` : ''}`;
-      } catch (e) {
-        document.getElementById('w-body').innerHTML =
-          `<div class="err">⚠️ Počasie nedostupné<br><span style="font-size:9px;opacity:.6">${e.message}</span></div>`;
-      }
-    }
-
-    /* ══════════════════════════════════════════
-       MENINY (Slovak name days)
-    ══════════════════════════════════════════ */
-    const MENINY = {
-      '1-1':'Katarína','1-2':'Alexandra','1-3':'Daniela','1-4':'Drahoslav','1-5':'Andrea',
-      '1-6':'Antónia','1-7':'Bohuslav','1-8':'Severín','1-9':'Alexej','1-10':'Dáša',
-      '1-11':'Malvína','1-12':'Ernest','1-13':'Rastislav','1-14':'Radovan','1-15':'Dobroslav',
-      '1-16':'Vanda','1-17':'Nataša','1-18':'Bohdana','1-19':'Drahomíra','1-20':'Dalibor',
-      '1-21':'Vincent','1-22':'Zora','1-23':'Miloš','1-24':'Timotej','1-25':'Gejza',
-      '1-26':'Tamara','1-27':'Bohuš','1-28':'Alfonz','1-29':'Gašpar','1-30':'Ľubica','1-31':'Emil',
-      '2-1':'Viktor','2-2':'Erika','2-3':'Blažej','2-4':'Veronika','2-5':'Agáta',
-      '2-6':'Dorota','2-7':'Vanda','2-8':'Zoja','2-9':'Zdenko','2-10':'Gabriela',
-      '2-11':'Dezider','2-12':'Perla','2-13':'Alžbeta','2-14':'Valentín','2-15':'Pravoslav',
-      '2-16':'Ida','2-17':'Miloslava','2-18':'Jaromír','2-19':'Vlasta','2-20':'Lívia',
-      '2-21':'Eleonóra','2-22':'Etela','2-23':'Roman','2-24':'Matej','2-25':'Frederik',
-      '2-26':'Viktor','2-27':'Alexander','2-28':'Zlatica','2-29':'Radomír',
-      '3-1':'Albín','3-2':'Anežka','3-3':'Bohumil','3-4':'Kazimír','3-5':'Fridrich',
-      '3-6':'Radoslav','3-7':'Tomáš','3-8':'Alan','3-9':'Františka','3-10':'Branislav',
-      '3-11':'Anežka','3-12':'Gregor','3-13':'Renáta','3-14':'Matilda','3-15':'Svetlana',
-      '3-16':'Slavomír','3-17':'Ľuboslav','3-18':'Eduard','3-19':'Jozef','3-20':'Víťazoslav',
-      '3-21':'Blahoslav','3-22':'Beňadik','3-23':'Adrián','3-24':'Gabriel','3-25':'Marián',
-      '3-26':'Emanuel','3-27':'Alena','3-28':'Soňa','3-29':'Miroslav','3-30':'Vieroslava','3-31':'Benjamín',
-      '4-1':'Hugo','4-2':'Zita','4-3':'Richard','4-4':'Izidor','4-5':'Miroslava',
-      '4-6':'Irena','4-7':'Zoltán','4-8':'Albert','4-9':'Milena','4-10':'Igor',
-      '4-11':'Július','4-12':'Estera','4-13':'Aleš','4-14':'Justína','4-15':'Anastázia',
-      '4-16':'Dana','4-17':'Rudolf','4-18':'Valér','4-19':'Jela','4-20':'Marcel',
-      '4-21':'Ervín','4-22':'Slavomíra','4-23':'Vojtech','4-24':'Juraj','4-25':'Marek',
-      '4-26':'Jaroslava','4-27':'Jaroslav','4-28':'Jarmila','4-29':'Lea','4-30':'Marián',
-      '5-1':'Sviatok práce','5-2':'Žigmund','5-3':'Galina','5-4':'Florián','5-5':'Lesana',
-      '5-6':'Hermína','5-7':'Monika','5-8':'Stanislav','5-9':'Roland','5-10':'Viktória',
-      '5-11':'Blanka','5-12':'Pankrác','5-13':'Servác','5-14':'Bonifác','5-15':'Žofia',
-      '5-16':'Svetozár','5-17':'Gizela','5-18':'Viola','5-19':'Gertrúda','5-20':'Bernard',
-      '5-21':'Zina','5-22':'Júlia','5-23':'Želmíra','5-24':'Ela','5-25':'Urban',
-      '5-26':'Dušan','5-27':'Iveta','5-28':'Viliam','5-29':'Maximilián','5-30':'Ferdinand','5-31':'Petronela',
-      '6-1':'Žaneta','6-2':'Xénia','6-3':'Karolína','6-4':'Lenka','6-5':'Laura',
-      '6-6':'Norbert','6-7':'Róbert','6-8':'Medard','6-9':'Stanislava','6-10':'Margaréta',
-      '6-11':'Dobroslava','6-12':'Zlatko','6-13':'Anton','6-14':'Vasil','6-15':'Vít',
-      '6-16':'Blažena','6-17':'Adolf','6-18':'Vratislav','6-19':'Alfréd','6-20':'Valéria',
-      '6-21':'Alojz','6-22':'Paulína','6-23':'Sidónia','6-24':'Ján','6-25':'Tadeáš',
-      '6-26':'Adriána','6-27':'Ladislav','6-28':'Beáta','6-29':'Peter','6-30':'Melánia',
-      '7-1':'Diana','7-2':'Berta','7-3':'Miloslav','7-4':'Prokop','7-5':'Cyril a Metod',
-      '7-6':'Patrícia','7-7':'Cyril','7-8':'Ivan','7-9':'Lujza','7-10':'Amália',
-      '7-11':'Milota','7-12':'Nina','7-13':'Margita','7-14':'Kamil','7-15':'Henrich',
-      '7-16':'Drahomír','7-17':'Bohuslava','7-18':'Kamila','7-19':'Dušana','7-20':'Iľja',
-      '7-21':'Daniel','7-22':'Magdaléna','7-23':'Oľga','7-24':'Vladimír','7-25':'Jakub',
-      '7-26':'Anna','7-27':'Božena','7-28':'Krištof','7-29':'Marta','7-30':'Libuša','7-31':'Ignác',
-      '8-1':'Božidara','8-2':'Gustáv','8-3':'Jerguš','8-4':'Dominik','8-5':'Hortenzia',
-      '8-6':'Jozefína','8-7':'Štefánia','8-8':'Oskar','8-9':'Ľubomíra','8-10':'Vavrinec',
-      '8-11':'Zuzana','8-12':'Darina','8-13':'Ľubomír','8-14':'Mojmír','8-15':'Marcela',
-      '8-16':'Leonard','8-17':'Milica','8-18':'Helena','8-19':'Lýdia','8-20':'Anabela',
-      '8-21':'Jana','8-22':'Tichomír','8-23':'Filip','8-24':'Bartolomej','8-25':'Ľudovít',
-      '8-26':'Samuel','8-27':'Silvia','8-28':'Augustín','8-29':'Nikola','8-30':'Ružena','8-31':'Nora',
-      '9-1':'Darina','9-2':'Linda','9-3':'Belo','9-4':'Rozália','9-5':'Ľudmila',
-      '9-6':'Alžbeta','9-7':'Poluša','9-8':'Mária','9-9':'Martina','9-10':'Oleg',
-      '9-11':'Bystrík','9-12':'Mária','9-13':'Ctibor','9-14':'Ľuboš','9-15':'Jolana',
-      '9-16':'Ľudomila','9-17':'Olympia','9-18':'Eugénia','9-19':'Konštantín','9-20':'Ľuboslav',
-      '9-21':'Matúš','9-22':'Móric','9-23':'Zdenka','9-24':'Ľuboš','9-25':'Vladislav',
-      '9-26':'Edita','9-27':'Cyprián','9-28':'Václav','9-29':'Michal','9-30':'Jarolím',
-      '10-1':'Arnold','10-2':'Levoslav','10-3':'Stela','10-4':'František','10-5':'Viera',
-      '10-6':'Natália','10-7':'Dušan','10-8':'Brigita','10-9':'Dionýz','10-10':'Slavomíra',
-      '10-11':'Valentína','10-12':'Maximilián','10-13':'Koloman','10-14':'Boris','10-15':'Terézia',
-      '10-16':'Hedviga','10-17':'Hedviga','10-18':'Lukáš','10-19':'Kristián','10-20':'Vendelín',
-      '10-21':'Uršuľa','10-22':'Sergej','10-23':'Alojzia','10-24':'Kvetoslava','10-25':'Aurel',
-      '10-26':'Demeter','10-27':'Sabína','10-28':'Dobroslava','10-29':'Klára','10-30':'Štefan','10-31':'Aurélia',
-      '11-1':'Všetkých svätých','11-2':'Dušičky','11-3':'Hubert','11-4':'Karol','11-5':'Imrich',
-      '11-6':'Renáta','11-7':'Irena','11-8':'Bohumír','11-9':'Teodor','11-10':'Tibor',
-      '11-11':'Martin','11-12':'Svätopluk','11-13':'Stanislav','11-14':'Irma','11-15':'Leopold',
-      '11-16':'Agnesa','11-17':'Klaudia','11-18':'Eugen','11-19':'Alžbeta','11-20':'Félix',
-      '11-21':'Elvíra','11-22':'Cecília','11-23':'Klement','11-24':'Emil','11-25':'Katarína',
-      '11-26':'Kornel','11-27':'Milan','11-28':'Henrieta','11-29':'Vratko','11-30':'Andrej',
-      '12-1':'Edmund','12-2':'Bibiána','12-3':'Oldřich','12-4':'Barbora','12-5':'Oto',
-      '12-6':'Mikuláš','12-7':'Ambróz','12-8':'Marína','12-9':'Izabela','12-10':'Radúz',
-      '12-11':'Hilda','12-12':'Otília','12-13':'Lucia','12-14':'Branislava','12-15':'Ivica',
-      '12-16':'Albína','12-17':'Kornélia','12-18':'Sláva','12-19':'Judita','12-20':'Dagmar',
-      '12-21':'Bohdan','12-22':'Adela','12-23':'Nadežda','12-24':'Štedrý deň','12-25':'Štefan',
-      '12-26':'Druhý sviatok','12-27':'Filoména','12-28':'Inokent','12-29':'Dávid','12-30':'Dávid','12-31':'Silvestér',
-    };
-
-    function renderMeniny() {
-      const el = document.getElementById('meniny-container');
-      if (!el) return;
+    function getTomorrowDateString() {
       const n = new Date();
-      const key = d => `${d.getMonth() + 1}-${d.getDate()}`;
-      const rows = [0, 1, 2].map(i => {
-        const d = new Date(n); d.setDate(d.getDate() + i);
-        const name = MENINY[key(d)] || '–';
-        const label = i === 0 ? `Dnes (${d.getDate()}.${d.getMonth() + 1}.)`
-                    : i === 1 ? `Zajtra (${d.getDate()}.${d.getMonth() + 1}.)`
-                    : `${SK_DAYS_SHORT[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
-        return `<div class="meniny-row${i === 0 ? ' meniny-today' : ''}">
-          <span class="meniny-day">${label}</span>
-          <span class="meniny-name">${name}</span>
-        </div>`;
-      }).join('');
-      el.innerHTML = rows;
+      if (n.getHours() < 6) return ymd(n);
+      const t = new Date(n); t.setDate(t.getDate() + 1); return ymd(t);
+    }
+    function formatDate(s) {
+      const [y, m, d] = s.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      const wk = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+      const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
+      return `${wk}, ${mo} ${d}`;
     }
 
-    /* ══════════════════════════════════════════
-       GMAIL
-    ══════════════════════════════════════════ */
-    async function fetchGmail() {
-      try {
-        const d = await authFetch('/api/gmail').then(r => r.json());
-        if (d.needsAuth) {
-          document.getElementById('gmail-badge').textContent = '–';
-          document.getElementById('gmail-body').innerHTML =
-            `<div class="err">Not connected<br><a href="/api/auth/google-redirect" class="cbtn google">Connect Google</a></div>`;
-          return;
+    /* ══════════════════════════════════════════════════════════════════
+       ROLLOVER & STREAK
+    ══════════════════════════════════════════════════════════════════ */
+    const STREAK_KEY = 'goal_streak_v1';
+
+    function rollover() {
+      const active = getActiveDateString();
+      const todayKey = `goals:${active}`;
+      const today = storeGet(todayKey) || [];
+      const todayTexts = new Set(today.map(g => g.text));
+      const keys = storeListKeys('goals:').sort();
+      for (const k of keys) {
+        const date = k.slice(6);
+        if (date >= active) continue;
+        const arr = storeGet(k) || [];
+        for (const g of arr) {
+          if (!g.done && !todayTexts.has(g.text)) {
+            today.push({ text: g.text, done: false });
+            todayTexts.add(g.text);
+          }
         }
-        const { emails = [], total = 0 } = d;
-        _tdGmail = emails; buildTodaysTasks();
-        document.getElementById('gmail-badge').textContent = `${total} unread`;
-        if (!emails.length) {
-          document.getElementById('gmail-body').innerHTML = `<div class="ok">✅ Inbox zero</div>`;
-          return;
-        }
-        document.getElementById('gmail-body').innerHTML = emails.map(e => {
-          const from = e.from.replace(/"([^"]+)"\s*<[^>]+>/, '$1').replace(/<[^>]+>/, '').trim();
-          return `<div class="email-row">
-            <div class="email-from"><span class="unread-dot"></span>${from}</div>
-            <div class="email-subj">${e.subject}</div>
-            <div class="email-snip">${e.snippet || ''}</div>
-          </div>`;
-        }).join('');
-      } catch (e) {
-        document.getElementById('gmail-body').innerHTML = `<div class="err">⚠️ ${e.message}</div>`;
+        storeDelete(k);
       }
+      storeSet(todayKey, today);
     }
 
-    /* ══════════════════════════════════════════
-       CALENDAR
-    ══════════════════════════════════════════ */
-    async function fetchCalendar() {
-      try {
-        const d = await authFetch('/api/calendar').then(r => r.json());
-        if (d.needsAuth) {
-          document.getElementById('cal-badge').textContent = '–';
-          document.getElementById('cal-body').innerHTML =
-            `<div class="err">Not connected<br><a href="/api/auth/google-redirect" class="cbtn google">Connect Google</a></div>`;
-          return;
-        }
-        const { events = [] } = d;
-        _tdCal = events; buildTodaysTasks();
-        document.getElementById('cal-badge').textContent = `${events.length} events`;
-        if (!events.length) {
-          document.getElementById('cal-body').innerHTML = `<div class="ok">✅ Free today</div>`;
-          return;
-        }
-        document.getElementById('cal-body').innerHTML = events.map(ev => {
-          const time = ev.allDay
-            ? `Celý deň`
-            : (() => { const s = new Date(ev.start); return `${p(s.getHours())}:${p(s.getMinutes())}`; })();
-          const meta = [
-            ev.location ? `📍 ${ev.location.slice(0, 24)}` : '',
-            ev.attendees > 1 ? `👥${ev.attendees}` : '',
-          ].filter(Boolean).join(' ');
-          return `<div class="ev-row">
-            <div class="ev-time">${time}</div>
-            <div>
-              <div class="ev-title">${ev.title}</div>
-              ${meta ? `<div class="ev-sub">${meta}</div>` : ''}
-            </div>
-          </div>`;
-        }).join('');
-      } catch (e) {
-        document.getElementById('cal-body').innerHTML = `<div class="err">⚠️ ${e.message}</div>`;
+    function streakCheck() {
+      const active = getActiveDateString();
+      let { count = 0, lastProcessedDate = '' } = storeGet(STREAK_KEY) || {};
+      const keys = storeListKeys('goals:').map(k => k.slice(6)).filter(d => d < active).sort();
+      for (const d of keys) {
+        if (lastProcessedDate && d <= lastProcessedDate) continue;
+        const arr = storeGet(`goals:${d}`) || [];
+        if (!arr.length) { lastProcessedDate = d; continue; }
+        const allDone = arr.every(g => g.done);
+        count = allDone ? count + 1 : 0;
+        lastProcessedDate = d;
       }
+      storeSet(STREAK_KEY, { count, lastProcessedDate });
     }
 
-    /* ══════════════════════════════════════════
-       SPOTIFY
-    ══════════════════════════════════════════ */
-    var spProgressInterval = null;
-    function msToTime(ms) {
-      if (!ms) return '0:00';
-      const s = Math.floor(ms / 1000);
-      return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-    }
+    /* ══════════════════════════════════════════════════════════════════
+       GOAL TICKER
+    ══════════════════════════════════════════════════════════════════ */
+    const tickerStage = document.getElementById('goalTickerStage');
+    const tickerMeta  = document.getElementById('goalTickerMeta');
+    let cycleIdx = 0;
+    let tickerInterval = null;
+    let isFirstRender = true;
 
-    async function fetchSpotify() {
-      try {
-        if (spProgressInterval) { clearInterval(spProgressInterval); spProgressInterval = null; }
-        const d = await authFetch('/api/spotify').then(r => r.json());
-        if (d.needsAuth) {
-          document.getElementById('sp-badge').textContent = '–';
-          document.getElementById('sp-body').innerHTML =
-            `<div class="err">Not connected<br><a href="/api/auth/spotify-redirect" class="cbtn spotify">Connect Spotify</a></div>`;
-          return;
-        }
-        if (d.playing && d.track) {
-          const t = d.track;
-          const dur = t.duration || d.duration || 0;
-          const prog = d.progress || 0;
-          const pct = dur ? Math.round(prog / dur * 100) : 0;
-          document.getElementById('sp-badge').textContent = '▶ Live';
-          document.getElementById('sp-body').innerHTML = `
-            <div class="sp-status">▶ NOW PLAYING</div>
-            <div class="sp-row">
-              ${t.image ? `<img class="sp-art" src="${t.image}" alt="">` : `<div class="sp-ph">🎵</div>`}
-              <div>
-                <div class="sp-track"><a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer">${t.name}</a></div>
-                <div class="sp-artist">${t.artist}</div>
-                <div class="sp-album">${t.album || ''}</div>
-              </div>
-            </div>
-            <div class="prog"><div class="prog-fill" id="spf" style="width:${pct}%"></div></div>
-            <div class="sp-time"><span id="sp-prog-time">${msToTime(prog)}</span><span>${msToTime(dur)}</span></div>`;
-          var pr = prog;
-          spProgressInterval = setInterval(function () {
-            pr += 1000;
-            var el = document.getElementById('spf');
-            var pt = document.getElementById('sp-prog-time');
-            if (el && dur) el.style.width = Math.min(100, Math.round(pr / dur * 100)) + '%';
-            if (pt) pt.textContent = msToTime(Math.min(pr, dur));
-            else if (!el) { clearInterval(spProgressInterval); spProgressInterval = null; }
-          }, 1000);
-        } else {
-          document.getElementById('sp-badge').textContent = '⏸';
-          var rec = d.recent || [];
-          document.getElementById('sp-body').innerHTML =
-            `<div class="sp-status" style="color:var(--muted)">⏸ Nič nehrá</div>` +
-            (rec.length
-              ? `<div class="sp-recent-label">Naposledy</div>` + rec.map(function (t) {
-                return `<div class="sp-rec">` +
-                  (t.image ? `<img class="sp-rec-art" src="${t.image}">` : `<div style="width:28px;height:28px;background:var(--surface2);border-radius:4px;flex-shrink:0"></div>`) +
-                  `<div style="flex:1;min-width:0"><div class="sp-rec-name">${t.name}</div><div class="sp-rec-art-name">${t.artist}</div></div>` +
-                  (t.duration ? `<span class="sp-rec-dur">${msToTime(t.duration)}</span>` : '') +
-                  `</div>`;
-              }).join('')
-              : '');
-        }
-      } catch (e) {
-        document.getElementById('sp-body').innerHTML =
-          `<div class="err">⚠️ Spotify nedostupný<br><span style="font-size:9px;opacity:.6">${e.message}</span></div>`;
+    function buildTickerItems() {
+      const goals = storeGet(`goals:${getActiveDateString()}`) || [];
+      const total = goals.length;
+      const done = goals.filter(g => g.done).length;
+      let items;
+      if (total === 0) {
+        items = [{ status: 'empty', text: 'No goals set for today — add one to get rolling.' }];
+      } else if (done === total) {
+        items = [{ status: 'done', text: '✓ All goals done — solid day.' }];
+      } else {
+        items = goals.filter(g => !g.done).map(g => ({ status: 'pending', text: g.text }));
       }
+      return { items, total, done };
     }
 
-    /* ══════════════════════════════════════════
-       VERCEL
-    ══════════════════════════════════════════ */
-    function stateColor(s) { return ({ READY: 'ready', BUILDING: 'building', ERROR: 'error' })[s] || 'unknown'; }
-    function ago(ms) {
-      if (!ms) return '';
-      const d = Math.floor((Date.now() - ms) / 60000);
-      return d < 60 ? `${d}m` : d < 1440 ? `${Math.floor(d / 60)}h` : `${Math.floor(d / 1440)}d`;
+    function tickerGlyph(status) {
+      if (status === 'done') return '✓';
+      if (status === 'pending') return '○';
+      return '·';
     }
 
-    async function fetchVercel() {
-      try {
-        const d = await authFetch('/api/vercel-projects').then(r => r.json());
-        if (d.needsAuth) {
-          document.getElementById('vp-badge').textContent = '–';
-          document.getElementById('vp-body').innerHTML =
-            `<div class="err">Add VERCEL_TOKEN + VERCEL_TEAM_ID to env vars</div>`;
-          return;
+    function tickerRender() {
+      const { items, total, done } = buildTickerItems();
+      if (cycleIdx >= items.length) cycleIdx = 0;
+      const item = items[cycleIdx] || items[0];
+
+      tickerMeta.textContent = `${done}/${total}`;
+
+      const existing = tickerStage.querySelector('.goal-ticker-row');
+      const newRow = document.createElement('div');
+      newRow.className = 'goal-ticker-row';
+      newRow.innerHTML = `
+        <span class="goal-ticker-status" data-status="${item.status}">${tickerGlyph(item.status)}</span>
+        <span class="goal-ticker-text"></span>
+      `;
+      newRow.querySelector('.goal-ticker-text').textContent = item.text;
+
+      if (isFirstRender || !existing) {
+        if (existing) existing.remove();
+        tickerStage.appendChild(newRow);
+        isFirstRender = false;
+      } else {
+        existing.classList.add('is-leaving');
+        setTimeout(() => existing.remove(), 460);
+        newRow.classList.add('is-entering');
+        tickerStage.appendChild(newRow);
+      }
+      cycleIdx = (cycleIdx + 1) % items.length;
+    }
+
+    function tickerStart() {
+      tickerRender();
+      if (tickerInterval) clearInterval(tickerInterval);
+      tickerInterval = setInterval(tickerRender, 5000);
+    }
+
+    window.addEventListener('goals-changed', () => {
+      cycleIdx = 0;
+      tickerRender();
+    });
+
+    /* ══════════════════════════════════════════════════════════════════
+       DAY RING
+    ══════════════════════════════════════════════════════════════════ */
+    const RING_R = 52;
+    const RING_C = 2 * Math.PI * RING_R;
+    const ringFill = document.getElementById('dayRingFill');
+    ringFill.setAttribute('stroke-dasharray', RING_C);
+
+    const SUN_STOPS = [
+      { p: 0,    c: [255, 216, 158] },
+      { p: 12.5, c: [255, 205, 121] },
+      { p: 25,   c: [255, 227, 143] },
+      { p: 37.5, c: [255, 183, 106] },
+      { p: 50,   c: [255, 149,  89] },
+      { p: 62.5, c: [243, 111,  79] },
+      { p: 75,   c: [226,  93, 122] },
+      { p: 87.5, c: [123,  91, 176] },
+      { p: 100,  c: [ 47,  58, 102] },
+    ];
+    function lerpStroke(percent) {
+      for (let i = 0; i < SUN_STOPS.length - 1; i++) {
+        const a = SUN_STOPS[i], b = SUN_STOPS[i + 1];
+        if (percent <= b.p) {
+          const t = (percent - a.p) / (b.p - a.p);
+          const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * t);
+          const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * t);
+          const bl = Math.round(a.c[2] + (b.c[2] - a.c[2]) * t);
+          return `rgb(${r}, ${g}, ${bl})`;
         }
-        const { projects = [] } = d;
-        document.getElementById('vp-badge').textContent = `${projects.length}`;
-        document.getElementById('vp-body').innerHTML = projects.map(p => `
-          <div class="vp">
-            <div class="vp-dot ${stateColor(p.state)}"></div>
-            <div class="vp-name">${p.url ? `<a href="${p.url}" target="_blank" rel="noopener noreferrer">${p.name}</a>` : p.name}</div>
-            <div class="vp-state">${p.state === 'READY' ? '✓' : p.state} ${ago(p.age)}</div>
-          </div>`).join('');
-      } catch (e) {
-        document.getElementById('vp-body').innerHTML = `<div class="err">⚠️ ${e.message}</div>`;
       }
+      return 'rgb(47, 58, 102)';
     }
 
-    /* ══════════════════════════════════════════
-       NOTION
-    ══════════════════════════════════════════ */
-    function fmtDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso); const now = new Date();
-      const diff = Math.floor((d - now) / 86400000);
-      if (diff < 0) return `<span style="color:#ff5555">overdue ${Math.abs(diff)}d</span>`;
-      if (diff === 0) return '<span style="color:#ffd166">today</span>';
-      if (diff === 1) return '<span style="color:#ffa94d">tomorrow</span>';
-      return d.toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric' });
+    function formatClock12(n) {
+      let h = n.getHours();
+      const m = n.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      return `${h}:${pad(m)} ${ampm}`;
+    }
+    function formatRemaining(h) {
+      const hh = Math.floor(h);
+      const mm = Math.floor((h - hh) * 60);
+      return `${hh}h ${mm}m`;
     }
 
-    function urgencyClass(label) {
-      if (!label) return 'pri-go';
-      const l = label.toLowerCase();
-      if (l.includes('now') || l.includes('asap') || l.includes('urgent')) return 'pri-now';
-      if (l.includes('ok') || l.includes('soon')) return 'pri-ok';
-      return 'pri-go';
-    }
+    function updateDayRing() {
+      const n = new Date();
+      const hrs = n.getHours() + n.getMinutes() / 60 + n.getSeconds() / 3600;
 
-    function phaseClass(phase) {
-      if (!phase) return 'ph-n';
-      const p = phase.toLowerCase();
-      if (p.includes('complet')) return 'ph-c';
-      if (p.includes('design')) return 'ph-d';
-      if (p.includes('concept')) return 'ph-co';
-      if (p.includes('potential')) return 'ph-p';
-      if (p.includes('finish')) return 'ph-f';
-      if (p.includes('runn')) return 'ph-r';
-      return 'ph-n';
-    }
+      const ringPct = document.getElementById('ringPct');
+      const ringPhase = document.getElementById('ringPhase');
+      const ringClock = document.getElementById('ringClock');
+      const ringStatus = document.getElementById('ringStatus');
+      const ringRemaining = document.getElementById('ringRemaining');
 
-    function renderTasks(tasks) {
-      if (!tasks.length) return '<div class="task-empty">Žiadne otvorené tasky ✓</div>';
-      return tasks.map(t => {
-        const urgLabel = t.urgency ? t.urgency.label : '';
-        const urgCls = urgencyClass(urgLabel);
-        const due = t.dueDate ? ` · due ${fmtDate(t.dueDate)}` : '';
-        return `<div class="task-row">
-          <div style="flex:1;min-width:0">
-            <div class="task-name"><a href="${t.url}" target="_blank" rel="noopener noreferrer">${t.title}</a></div>
-            ${t.dueDate || t.status ? `<div class="task-meta">${t.status || ''}${due}</div>` : ''}
-          </div>
-          ${urgLabel ? `<div class="task-pri ${urgCls}">${urgLabel}</div>` : ''}
-        </div>`;
-      }).join('');
-    }
+      ringClock.textContent = formatClock12(n);
 
-    function renderProjects(projects) {
-      if (!projects.length) return '<div class="ev-empty">Žiadne projekty</div>';
-      return projects.map(p => {
-        const cls = phaseClass(p.phase);
-        const dotColor = ({
-          'ph-c': '#2ed573', 'ph-d': '#54a0ff', 'ph-co': '#a29bfe',
-          'ph-p': '#636e72', 'ph-r': '#ffd166', 'ph-f': '#ff9f43',
-        })[cls] || '#8892b0';
-        const pricing = [p.price, p.monthly].filter(Boolean).join(' · ');
-        return `<div class="proj-row">
-          <div class="proj-dot" style="background:${dotColor}"></div>
-          <div style="flex:1;min-width:0">
-            <div class="proj-name"><a href="${p.url}" target="_blank" rel="noopener noreferrer">${p.title}</a></div>
-            ${pricing ? `<div class="proj-meta">${pricing}</div>` : ''}
-          </div>
-          <div class="proj-phase ${cls}">${p.phase || '–'}</div>
-        </div>`;
-      }).join('');
-    }
-
-    function renderRevenue(projects) {
-      const paying = projects.filter(p => p.monthlyNum > 0);
-      const totalMonthly = paying.reduce((s, p) => s + p.monthlyNum, 0);
-      const activePrices = projects.filter(p => p.phase === 'Completed' && p.priceNum > 0);
-      const totalPaid = activePrices.reduce((s, p) => s + p.priceNum, 0);
-
-      const fmtNum = n => Number.isInteger(n) ? n : n.toFixed(2);
-      document.getElementById('rev-badge').textContent = `€${fmtNum(totalMonthly)}/mes`;
-
-      const clientRows = paying.map(p =>
-        `<div class="rev-client-row">
-          <span class="rev-client-name">${p.title}</span>
-          <span class="rev-client-val">€${fmtNum(p.monthlyNum)}/mes</span>
-        </div>`
-      ).join('');
-
-      document.getElementById('rev-body').innerHTML = `
-        <div class="rev-grid">
-          <div class="rev-block">
-            <div class="rev-block-label">Mesačne</div>
-            <div class="rev-block-amount"><sup>€</sup>${fmtNum(totalMonthly)}<span style="font-size:11px;color:var(--muted)">/mes</span></div>
-          </div>
-          <div class="rev-block">
-            <div class="rev-block-label">Projekty (PAID)</div>
-            <div class="rev-block-amount"><sup>€</sup>${totalPaid}</div>
-          </div>
-        </div>
-        <div class="rev-clients">${clientRows || '<div class="ev-empty">Žiadni platiaci klienti</div>'}</div>`;
-    }
-
-    async function fetchNotion() {
-      try {
-        const d = await authFetch('/api/notion').then(r => r.json());
-        if (d.needsAuth || d.error === 'not_connected') {
-          const msg = `<div class="err">Add NOTION_TOKEN to env vars<br><a href="https://notion.so/my-integrations" target="_blank" rel="noopener noreferrer" class="cbtn notion">Get token</a></div>`;
-          document.getElementById('notion-tasks').innerHTML = msg;
-          document.getElementById('notion-projects').innerHTML = '';
-          document.getElementById('notion-task-badge').textContent = '–';
-          document.getElementById('notion-proj-badge').textContent = '–';
-          document.getElementById('rev-body').innerHTML = msg;
-          return;
-        }
-        const tasks = d.tasks || [];
-        const projects = d.projects || [];
-        _tdNotion = { tasks }; buildTodaysTasks();
-        document.getElementById('notion-task-badge').textContent = `${tasks.length} aktívne`;
-        document.getElementById('notion-proj-badge').textContent = `${projects.length} projektov`;
-        document.getElementById('notion-tasks').innerHTML = renderTasks(tasks);
-        document.getElementById('notion-projects').innerHTML = renderProjects(projects);
-        renderRevenue(projects);
-      } catch (e) {
-        document.getElementById('notion-tasks').innerHTML = `<div class="err">⚠️ ${e.message}</div>`;
-        document.getElementById('notion-projects').innerHTML = '';
-        document.getElementById('rev-body').innerHTML = `<div class="err">⚠️ ${e.message}</div>`;
-      }
-    }
-
-    /* ══════════════════════════════════════════
-       NEWS
-    ══════════════════════════════════════════ */
-    function timeSince(str) {
-      try {
-        const d = Math.floor((Date.now() - new Date(str)) / 60000);
-        return d < 60 ? `${d}m ago`
-             : d < 1440 ? `${Math.floor(d / 60)}h ago`
-             : new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-      } catch { return ''; }
-    }
-
-    async function fetchNews(type, src, onItems) {
-      try {
-        const { items = [] } = await fetch(`/api/news?type=${type}`).then(r => r.json());
-        document.getElementById(`panel-${type}`).innerHTML = items.map(it => `
-          <div class="news-row">
-            <div class="news-title"><a href="${it.link}" target="_blank" rel="noopener noreferrer">${it.title}</a></div>
-            ${it.desc ? `<div class="news-desc">${it.desc}</div>` : ''}
-            <div class="news-sub">${src} · ${timeSince(it.pub)}</div>
-          </div>`).join('');
-        if (onItems) onItems(items);
-        return items.length;
-      } catch {
-        document.getElementById(`panel-${type}`).innerHTML = `<div class="err">⚠️ Could not load</div>`;
-        return 0;
-      }
-    }
-
-    /* ══════════════════════════════════════════
-       TODAY'S TASKS (aggregator)
-    ══════════════════════════════════════════ */
-    function buildTodaysTasks() {
-      const items = [];
-      (_tdCal || []).slice(0, 3).forEach(ev => {
-        const time = ev.allDay
-          ? 'Celý deň'
-          : (() => { const s = new Date(ev.start); return `${p(s.getHours())}:${p(s.getMinutes())}`; })();
-        items.push({ type: 'cal', icon: '📅', title: ev.title, sub: time });
-      });
-      (_tdNotion.tasks || []).filter(t => {
-        const isUrgent = t.urgency && t.urgency.color === 'red';
-        const isOverdue = t.dueDate && new Date(t.dueDate) < new Date();
-        const isToday = t.dueDate && (() => {
-          const d = new Date(t.dueDate); const n = new Date();
-          return d.toDateString() === n.toDateString();
-        })();
-        return isUrgent || isOverdue || isToday;
-      }).slice(0, 3).forEach(t => {
-        const sub = t.dueDate ? `Due ${fmtDate(t.dueDate)}` : (t.status || 'Urgent');
-        items.push({ type: 'urgent', icon: '⚠️', title: t.title, sub });
-      });
-      (_tdGmail || []).slice(0, 2).forEach(e => {
-        const from = e.from.replace(/"([^"]+)"\s*<[^>]+>/, '$1').replace(/<[^>]+>/, '').trim();
-        items.push({ type: 'email', icon: '📧', title: e.subject, sub: from });
-      });
-
-      const el = document.getElementById('tt-body');
-      const badge = document.getElementById('tt-badge');
-      if (!el) return;
-      if (!items.length) {
-        if (badge) badge.textContent = '0';
-        el.innerHTML = '<div class="ok">✅ Nič naliehavé — užívaj deň!</div>';
+      if (hrs < WAKE_HOUR) {
+        ringFill.setAttribute('stroke', '#4D4B47');
+        ringFill.setAttribute('stroke-dashoffset', RING_C);
+        ringPct.textContent = '—';
+        ringPhase.textContent = 'SLEEPING';
+        ringStatus.textContent = '😴 Still sleeping';
+        ringRemaining.textContent = `${formatRemaining(WAKE_HOUR - hrs)} until wake-up`;
         return;
       }
-      if (badge) badge.textContent = items.length;
-      el.innerHTML = items.map(i => `
-        <div class="u-row">
-          <div class="u-dot ${i.type}"></div>
-          <div>
-            <div class="u-label">${i.icon} ${i.title}</div>
-            <div class="u-sub">${i.sub}</div>
-          </div>
-        </div>`).join('');
-    }
-
-    /* ══════════════════════════════════════════
-       WORLD MAP (D3 + topojson)
-    ══════════════════════════════════════════ */
-    let _worldGeo = null;
-    let _countryLinks = {};
-
-    const COUNTRY_KEYWORDS = {
-      'hungary':348,'hungarian':348,'budapest':348,'orbán':348,'orban':348,'magyar':348,
-      'united states':840,'usa':840,' us ':840,'america':840,'american':840,'trump':840,'washington':840,'biden':840,'harris':840,
-      'united kingdom':826,'uk ':826,'britain':826,'british':826,'england':826,'london':826,
-      'russia':643,'russian':643,'moscow':643,'putin':643,'kremlin':643,
-      'china':156,'chinese':156,'beijing':156,'xi jinping':156,
-      'ukraine':804,'ukrainian':804,'kyiv':804,'zelensky':804,
-      'israel':376,'israeli':376,'tel aviv':376,'netanyahu':376,
-      'gaza':275,'palestine':275,'palestinian':275,'west bank':275,
-      'france':250,'french':250,'paris':250,'macron':250,
-      'germany':276,'german':276,'berlin':276,'scholz':276,
-      'italy':380,'italian':380,'rome':380,'meloni':380,'pope':380,'vatican':380,'leo xiv':380,
-      'nigeria':566,'nigerian':566,'lagos':566,'abuja':566,
-      'peru':604,'peruvian':604,'lima':604,
-      'iran':364,'iranian':364,'tehran':364,'khamenei':364,
-      'syria':760,'syrian':760,'damascus':760,
-      'turkey':792,'turkish':792,'ankara':792,'erdogan':792,
-      'india':356,'indian':356,'delhi':356,'modi':356,'mumbai':356,
-      'japan':392,'japanese':392,'tokyo':392,
-      'brazil':76,'brazilian':76,'brasília':76,
-      'mexico':484,'mexican':484,'mexico city':484,
-      'canada':124,'canadian':124,'ottawa':124,'trudeau':124,
-      'australia':36,'australian':36,'canberra':36,
-      'south korea':410,'korean':410,'seoul':410,
-      'north korea':408,'kim jong':408,'pyongyang':408,
-      'saudi':682,'riyadh':682,'mbs':682,
-      'egypt':818,'egyptian':818,'cairo':818,
-      'pakistan':586,'islamabad':586,'karachi':586,
-      'afghanistan':4,'afghan':4,'kabul':4,'taliban':4,
-      'iraq':368,'iraqi':368,'baghdad':368,
-      'spain':724,'spanish':724,'madrid':724,
-      'poland':616,'polish':616,'warsaw':616,
-      'venezuela':862,'venezuelan':862,'caracas':862,
-      'colombia':170,'colombian':170,'bogotá':170,
-      'argentina':32,'argentinian':32,'buenos aires':32,
-      'south africa':710,'johannesburg':710,'pretoria':710,
-      'kenya':404,'kenyan':404,'nairobi':404,
-      'ethiopia':231,'ethiopian':231,'addis':231,
-      'sudan':729,'sudanese':729,'khartoum':729,
-      'myanmar':104,'burma':104,'rangoon':104,
-      'taiwan':158,'taiwanese':158,'taipei':158,
-      'philippines':608,'philippine':608,'manila':608,
-      'indonesia':360,'indonesian':360,'jakarta':360,
-      'thailand':764,'thai':764,'bangkok':764,
-      'vietnam':704,'vietnamese':704,'hanoi':704,
-      'bangladesh':50,'dhaka':50,
-      'sweden':752,'swedish':752,'stockholm':752,
-      'norway':578,'norwegian':578,'oslo':578,
-      'finland':246,'finnish':246,'helsinki':246,
-      'denmark':208,'danish':208,'copenhagen':208,
-      'netherlands':528,'dutch':528,'amsterdam':528,'hague':528,
-      'belgium':56,'belgian':56,'brussels':56,
-      'switzerland':756,'swiss':756,'geneva':756,'bern':756,
-      'austria':40,'austrian':40,'vienna':40,
-      'portugal':620,'portuguese':620,'lisbon':620,
-      'greece':300,'greek':300,'athens':300,
-      'romania':642,'romanian':642,'bucharest':642,
-      'czech':203,'czechia':203,'prague':203,
-      'slovakia':703,'slovak':703,'bratislava':703,
-      'morocco':504,'moroccan':504,'rabat':504,
-      'algeria':12,'algerian':12,'algiers':12,
-      'tunisia':788,'tunisian':788,'tunis':788,
-      'libya':434,'libyan':434,'tripoli':434,
-      'somalia':706,'somali':706,'mogadishu':706,
-      'zimbabwe':716,'zimbabwean':716,'harare':716,
-      'congo':180,'kinshasa':180,
-      'ghana':288,'ghanaian':288,'accra':288,
-      'senegal':686,'dakar':686,
-      'chile':152,'chilean':152,'santiago':152,
-      'ecuador':218,'ecuadorian':218,'quito':218,
-      'bolivia':68,'bolivian':68,'la paz':68,
-      'cuba':192,'cuban':192,'havana':192,
-      'haiti':332,'haitian':332,'port-au-prince':332,
-      'jordan':400,'jordanian':400,'amman':400,
-      'lebanon':422,'lebanese':422,'beirut':422,
-      'qatar':634,'doha':634,
-      'uae':784,'dubai':784,'abu dhabi':784,
-      'kuwait':414,'kuwaiti':414,
-      'oman':512,'muscat':512,
-      'yemen':887,'yemeni':887,'sanaa':887,'houthi':887,
-      'kazakhstan':398,'astana':398,
-      'uzbekistan':860,'tashkent':860,
-      'new zealand':554,'auckland':554,'wellington':554,
-    };
-
-    async function initWorldMap() {
-      try {
-        const world = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r => r.json());
-        _worldGeo = world;
-        drawWorldMap([]);
-      } catch (e) { console.warn('World map load failed', e); }
-    }
-
-    function drawWorldMap(highlightIds) {
-      const container = document.getElementById('world-map-container');
-      if (!container || !_worldGeo || typeof d3 === 'undefined' || typeof topojson === 'undefined') return;
-      const w = container.clientWidth || 500;
-      const h = Math.max(container.clientHeight || 140, 90);
-      container.innerHTML = '';
-      const svg = d3.select(container).append('svg')
-        .attr('width', '100%').attr('height', '100%')
-        .attr('viewBox', `0 0 ${w} ${h}`)
-        .attr('preserveAspectRatio', 'xMidYMid meet')
-        .style('display', 'block');
-      const projection = d3.geoNaturalEarth1().scale(w / 6.3).translate([w / 2, h / 2]);
-      const path = d3.geoPath().projection(projection);
-      const countries = topojson.feature(_worldGeo, _worldGeo.objects.countries);
-      svg.append('g').selectAll('path')
-        .data(countries.features).join('path')
-        .attr('d', path)
-        .attr('fill', d => highlightIds.includes(+d.id) ? '#54a0ff' : '#4a5280')
-        .attr('stroke', '#1a1d27').attr('stroke-width', 0.5)
-        .attr('opacity', d => highlightIds.includes(+d.id) ? 1 : 0.85)
-        .style('cursor', d => _countryLinks[+d.id] ? 'pointer' : 'default')
-        .on('click', function (event, d) {
-          const art = _countryLinks[+d.id];
-          if (art?.link) window.open(art.link, '_blank', 'noopener');
-        })
-        .on('mouseover', function (event, d) {
-          const art = _countryLinks[+d.id];
-          if (art) d3.select(this).attr('fill', '#7ec8ff');
-        })
-        .on('mouseout', function (event, d) {
-          d3.select(this).attr('fill', highlightIds.includes(+d.id) ? '#54a0ff' : '#4a5280');
-        });
-      if (highlightIds.length) {
-        svg.append('g').selectAll('path')
-          .data(countries.features.filter(d => highlightIds.includes(+d.id))).join('path')
-          .attr('d', path).attr('fill', 'none')
-          .attr('stroke', '#54a0ff').attr('stroke-width', 1.2).attr('opacity', 0.5)
-          .style('pointer-events', 'none');
+      if (hrs >= SLEEP_HOUR) {
+        ringFill.setAttribute('stroke', '#E25D7A');
+        ringFill.setAttribute('stroke-dashoffset', 0);
+        ringPct.textContent = '100';
+        ringPhase.textContent = 'PAST BEDTIME';
+        ringStatus.textContent = '⚠️ Past bedtime';
+        ringRemaining.textContent = 'Sleep!';
+        return;
       }
+      const percent = (hrs - WAKE_HOUR) / (SLEEP_HOUR - WAKE_HOUR) * 100;
+      ringFill.setAttribute('stroke', lerpStroke(percent));
+      ringFill.setAttribute('stroke-dashoffset', RING_C * (1 - percent / 100));
+      ringPct.textContent = Math.round(percent);
+
+      let phase, status;
+      if (percent < 25)      { phase = 'MORNING';   status = '☀️ Morning — fresh start'; }
+      else if (percent < 50) { phase = 'MIDDAY';    status = '⚡ Midday — keep moving'; }
+      else if (percent < 75) { phase = 'AFTERNOON'; status = '🔥 Afternoon — push it'; }
+      else if (percent < 90) { phase = 'EVENING';   status = '⏳ Evening — wrap up'; }
+      else                   { phase = 'BEDTIME';   status = '🌙 Bedtime soon'; }
+      ringPhase.textContent = phase;
+      ringStatus.textContent = status;
+      ringRemaining.textContent = `${formatRemaining(SLEEP_HOUR - hrs)} awake time left`;
     }
 
-    function highlightMapCountries(items) {
-      if (!items || !items.length) return;
-      const links = {}; const ids = new Set();
-      for (const item of items) {
-        const text = (item.title + ' ' + (item.desc || '')).toLowerCase();
-        for (const [kw, id] of Object.entries(COUNTRY_KEYWORDS)) {
-          if (text.includes(kw)) {
-            ids.add(id);
-            if (!links[id]) links[id] = item;
-          }
+    /* ══════════════════════════════════════════════════════════════════
+       GOAL LIST RENDERING — TODAY + TOMORROW
+    ══════════════════════════════════════════════════════════════════ */
+    const SHOW_LIMIT = 5;
+    const expandedKeys = new Set();
+
+    function buildGoalRow(goal, idx, key, readOnly) {
+      const row = document.createElement('li');
+      row.className = 'goal-row';
+      if (goal.done) row.classList.add('is-done');
+      if (goal.queued && !goal.done) row.classList.add('is-queued');
+      row.draggable = true;
+      row.dataset.idx = idx;
+
+      // Drag handle
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⋮⋮';
+      row.appendChild(handle);
+
+      // Checkbox
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = 'gm-cb'; cb.checked = !!goal.done;
+      if (readOnly) { cb.disabled = true; cb.title = 'Activates at 6 AM tomorrow'; }
+      cb.addEventListener('change', () => {
+        const arr = storeGet(key) || [];
+        arr[idx].done = cb.checked;
+        if (cb.checked) arr[idx].doneAt = Date.now();
+        else delete arr[idx].doneAt;
+        storeSet(key, arr);
+        if (key.startsWith('goals:' + getActiveDateString())) loadToday();
+        else loadTomorrow();
+      });
+      row.appendChild(cb);
+
+      // Text (inline edit)
+      const text = document.createElement('span');
+      text.className = 'goal-text'; text.textContent = goal.text;
+      makeInlineEdit(text, key, idx);
+      row.appendChild(text);
+
+      // Queue button
+      const qBtn = document.createElement('button');
+      qBtn.className = 'gm-queue-btn'; qBtn.textContent = '⚡';
+      qBtn.title = 'Queue for productivity window';
+      if (goal.queued) qBtn.classList.add('is-active');
+      if (readOnly) qBtn.disabled = true;
+      qBtn.addEventListener('click', () => {
+        if (readOnly) return;
+        const arr = storeGet(key) || [];
+        arr[idx].queued = !arr[idx].queued;
+        storeSet(key, arr);
+        row.classList.add('is-queue-flashing');
+        setTimeout(() => {
+          if (key.startsWith('goals:' + getActiveDateString())) loadToday();
+          else loadTomorrow();
+        }, 480);
+      });
+      row.appendChild(qBtn);
+
+      // Delete
+      const del = document.createElement('button');
+      del.className = 'goal-delete'; del.textContent = '×'; del.title = 'Delete';
+      del.addEventListener('click', () => {
+        const arr = storeGet(key) || [];
+        arr.splice(idx, 1);
+        storeSet(key, arr);
+        if (key.startsWith('goals:' + getActiveDateString())) loadToday();
+        else loadTomorrow();
+      });
+      row.appendChild(del);
+
+      wireDragReorder(row, key);
+      return row;
+    }
+
+    function makeInlineEdit(span, key, idx) {
+      span.addEventListener('click', (e) => {
+        if (span.getAttribute('contenteditable') === 'true') return;
+        span.setAttribute('contenteditable', 'true');
+        span.focus();
+        const r = document.createRange(); r.selectNodeContents(span); r.collapse(false);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      });
+      const commit = () => {
+        span.removeAttribute('contenteditable');
+        const newText = span.textContent.trim();
+        const arr = storeGet(key) || [];
+        if (!arr[idx]) return;
+        if (newText && newText !== arr[idx].text) {
+          arr[idx].text = newText;
+          storeSet(key, arr);
+        } else {
+          span.textContent = arr[idx].text;
         }
-      }
-      _countryLinks = links;
-      drawWorldMap([...ids]);
-    }
-
-    /* ══════════════════════════════════════════
-       CURRENCY / CRYPTO
-    ══════════════════════════════════════════ */
-    async function loadCurrencies() {
-      const el = document.getElementById('currency-list');
-      try {
-        const [fxRes, btcRes] = await Promise.all([
-          fetch('https://api.frankfurter.app/latest?base=EUR&symbols=USD,CZK,GBP'),
-          fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=eur'),
-        ]);
-        const fx = await fxRes.json();
-        const crypto = await btcRes.json();
-        const rates = fx.rates;
-        el.innerHTML = `
-          <div class="cur-row"><span class="cur-sym">EUR/USD</span><span class="cur-val">${rates.USD.toFixed(4)}</span></div>
-          <div class="cur-row"><span class="cur-sym">EUR/CZK</span><span class="cur-val">${rates.CZK.toFixed(2)}</span></div>
-          <div class="cur-row"><span class="cur-sym">EUR/GBP</span><span class="cur-val">${rates.GBP.toFixed(4)}</span></div>
-          <div class="cur-row"><span class="cur-sym">BTC</span><span class="cur-val">€${Math.round(crypto.bitcoin.eur).toLocaleString()}</span></div>
-          <div class="cur-row"><span class="cur-sym">ETH</span><span class="cur-val">€${Math.round(crypto.ethereum.eur).toLocaleString()}</span></div>`;
-      } catch (e) {
-        el.innerHTML = '<div class="cur-loading">Nedostupné (offline?)</div>';
-      }
-    }
-
-    /* ══════════════════════════════════════════
-       REFRESH ALL
-    ══════════════════════════════════════════ */
-    async function refreshAll() {
-      const lu = document.getElementById('lastUp');
-      if (lu) lu.textContent = '…';
-      renderMeniny();
-      await Promise.all([
-        fetchWeather(), fetchGmail(), fetchCalendar(), fetchSpotify(), fetchVercel(), fetchNotion(),
-        fetchNews('world', 'BBC', highlightMapCountries).then(n => {
-          const b = document.getElementById('news-world-badge'); if (b) b.textContent = `${n}`;
-        }),
-        fetchNews('ai', 'TechCrunch').then(n => {
-          const b = document.getElementById('news-ai-badge'); if (b) b.textContent = `${n}`;
-        }),
-        fetchNews('tech', 'Ars Technica').then(n => {
-          const b = document.getElementById('news-tech-badge'); if (b) b.textContent = `${n}`;
-        }),
-      ]);
-      const n = new Date();
-      if (lu) lu.textContent = `${p(n.getHours())}:${p(n.getMinutes())}`;
-    }
-
-    /* ══════════════════════════════════════════
-       DAILY FOCUS — localStorage (per day)
-    ══════════════════════════════════════════ */
-    function initFocus() {
-      const focusEl = document.getElementById('daily-focus');
-      if (!focusEl) return;
-      const focusKey = 'mb_focus_' + new Date().toDateString();
-      focusEl.value = localStorage.getItem(focusKey) || '';
-      focusEl.addEventListener('input', () => localStorage.setItem(focusKey, focusEl.value));
-    }
-
-    /* ══════════════════════════════════════════
-       SCRATCHPAD — localStorage (persists)
-    ══════════════════════════════════════════ */
-    function initScratchpad() {
-      const scratchEl = document.getElementById('scratchpad');
-      if (!scratchEl) return;
-      scratchEl.value = localStorage.getItem('mb_scratch') || '';
-      scratchEl.addEventListener('input', () => localStorage.setItem('mb_scratch', scratchEl.value));
-    }
-
-    /* ══════════════════════════════════════════
-       HABIT TRACKER — localStorage (resets daily)
-    ══════════════════════════════════════════ */
-    function initHabits() {
-      const habitKey = 'mb_habits_' + new Date().toDateString();
-      const savedHabits = JSON.parse(localStorage.getItem(habitKey) || '{}');
-      document.querySelectorAll('.habit-cb').forEach(cb => {
-        const idx = cb.dataset.habit;
-        if (savedHabits[idx]) {
-          cb.checked = true;
-          cb.nextElementSibling.classList.add('done');
+      };
+      span.addEventListener('blur', commit);
+      span.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); span.blur(); }
+        if (e.key === 'Escape') {
+          const arr = storeGet(key) || [];
+          if (arr[idx]) span.textContent = arr[idx].text;
+          span.removeAttribute('contenteditable'); span.blur();
         }
-        cb.addEventListener('change', () => {
-          cb.nextElementSibling.classList.toggle('done', cb.checked);
-          savedHabits[idx] = cb.checked;
-          localStorage.setItem(habitKey, JSON.stringify(savedHabits));
-        });
       });
     }
 
-    /* ══════════════════════════════════════════
-       POMODORO TIMER
-    ══════════════════════════════════════════ */
-    let pomoInterval = null;
-    let pomoSeconds = 25 * 60;
-    let pomoRunning = false;
-    let pomoIsWork = true;
-    const WORK_TIME = 25 * 60;
-    const BREAK_TIME = 5 * 60;
-
-    function updatePomoDisplay() {
-      const m = String(Math.floor(pomoSeconds / 60)).padStart(2, '0');
-      const s = String(pomoSeconds % 60).padStart(2, '0');
-      const disp = document.getElementById('pomo-display');
-      const mode = document.getElementById('pomo-mode');
-      if (disp) {
-        disp.textContent = m + ':' + s;
-        disp.style.color = pomoIsWork ? 'var(--c-urgent)' : 'var(--c-ai)';
-      }
-      if (mode) mode.textContent = pomoIsWork ? 'PRÁCA' : 'PRESTÁVKA';
+    function wireDragReorder(row, key) {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', row.dataset.idx);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        row.classList.add('is-drag-over');
+        row.style.borderTopColor = 'var(--success)';
+      });
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('is-drag-over');
+        row.style.borderTopColor = '';
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('is-drag-over'); row.style.borderTopColor = '';
+        const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        const to = parseInt(row.dataset.idx, 10);
+        if (isNaN(from) || isNaN(to) || from === to) return;
+        const arr = storeGet(key) || [];
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+        storeSet(key, arr);
+        if (key.startsWith('goals:' + getActiveDateString())) loadToday();
+        else loadTomorrow();
+      });
     }
 
-    function pomodoroToggle() {
-      const btn = document.getElementById('pomo-start');
-      if (pomoRunning) {
-        clearInterval(pomoInterval); pomoRunning = false;
-        if (btn) { btn.textContent = '▶ Pokračovať'; btn.classList.remove('active'); }
+    function renderListInto(goals, listEl, emptyEl, key, readOnly) {
+      listEl.innerHTML = '';
+      if (!goals.length) { emptyEl.style.display = 'block'; }
+      else { emptyEl.style.display = 'none'; }
+      const expanded = expandedKeys.has(key);
+      const visibleCount = (goals.length > SHOW_LIMIT && !expanded) ? SHOW_LIMIT : goals.length;
+      for (let i = 0; i < visibleCount; i++) {
+        listEl.appendChild(buildGoalRow(goals[i], i, key, readOnly));
+      }
+      if (goals.length > SHOW_LIMIT) {
+        const toggle = document.createElement('button');
+        toggle.className = 'show-more-toggle';
+        toggle.textContent = expanded
+          ? `Show less ▴`
+          : `Show ${goals.length - SHOW_LIMIT} more ▾`;
+        toggle.addEventListener('click', () => {
+          if (expanded) expandedKeys.delete(key); else expandedKeys.add(key);
+          if (key.startsWith('goals:' + getActiveDateString())) loadToday();
+          else loadTomorrow();
+        });
+        listEl.appendChild(toggle);
+      }
+      if (readOnly) renderTomorrowCount();
+      else renderTodayHeader();
+    }
+
+    function renderTodayHeader() {
+      const goals = storeGet(`goals:${getActiveDateString()}`) || [];
+      const total = goals.length;
+      const done = goals.filter(g => g.done).length;
+      document.getElementById('gmProgressNum').textContent = done;
+      document.getElementById('gmProgressTotal').textContent = `/ ${total}`;
+      const label = document.getElementById('gmProgressLabel');
+      const card  = document.getElementById('todayCard');
+      const pushBtn = document.getElementById('gmPushBtn');
+
+      if (total === 0) {
+        label.textContent = 'no goals yet';
+        card.classList.remove('gm-all-done');
+        pushBtn.style.display = 'none';
+      } else if (done === total) {
+        label.textContent = 'all done — solid day';
+        card.classList.add('gm-all-done');
+        pushBtn.style.display = 'none';
       } else {
-        pomoRunning = true;
-        if (btn) { btn.textContent = '⏸ Pauza'; btn.classList.add('active'); }
-        pomoInterval = setInterval(() => {
-          if (pomoSeconds > 0) { pomoSeconds--; updatePomoDisplay(); }
-          else {
-            clearInterval(pomoInterval); pomoRunning = false;
-            pomoIsWork = !pomoIsWork;
-            pomoSeconds = pomoIsWork ? WORK_TIME : BREAK_TIME;
-            updatePomoDisplay();
-            if (btn) { btn.textContent = '▶ Štart'; btn.classList.remove('active'); }
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              new Notification(pomoIsWork ? '☕ Prestávka skončila!' : '🍅 Pomodoro hotové!');
-            }
-          }
-        }, 1000);
+        label.textContent = 'complete';
+        card.classList.remove('gm-all-done');
+        pushBtn.style.display = 'block';
       }
-    }
 
-    function pomodoroReset() {
-      clearInterval(pomoInterval); pomoRunning = false; pomoIsWork = true;
-      pomoSeconds = WORK_TIME; updatePomoDisplay();
-      const btn = document.getElementById('pomo-start');
-      if (btn) { btn.textContent = '▶ Štart'; btn.classList.remove('active'); }
-    }
-
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-
-    /* ══════════════════════════════════════════
-       DRAG-AND-DROP LAYOUT
-    ══════════════════════════════════════════ */
-    const CARD_SIZES = {
-      'card-weather':  { cols: 2, rows: 1 },
-      'card-urgent':   { cols: 4, rows: 1 },
-      'card-cal':      { cols: 2, rows: 1 },
-      'card-world':    { cols: 4, rows: 2 },
-      'card-ai':       { cols: 2, rows: 1 },
-      'card-tech':     { cols: 2, rows: 1 },
-      'card-notion':   { cols: 3, rows: 2 },
-      'card-tasks':    { cols: 3, rows: 1 },
-      'card-email':    { cols: 3, rows: 1 },
-      'card-spotify':  { cols: 2, rows: 1 },
-      'card-vercel':   { cols: 2, rows: 1 },
-      'card-revenue':  { cols: 2, rows: 1 },
-    };
-
-    const LAYOUT_KEY = 'mb_layout_v3';
-
-    function getSavedLayout() {
-      try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}; }
-      catch (e) { return {}; }
-    }
-
-    function applyCardSizes() {
-      const { sizes } = getSavedLayout();
-      document.querySelectorAll('.grid .card').forEach(card => {
-        const key = card.dataset.card;
-        if (!key) return;
-        const def = CARD_SIZES[key] || { cols: 2, rows: 1 };
-        const s = (sizes && sizes[key]) || def;
-        card.style.gridColumn = 'span ' + (s.cols || def.cols);
-        if ((s.rows || def.rows) > 1) card.style.gridRow = 'span ' + (s.rows || def.rows);
-        else card.style.gridRow = '';
-      });
-    }
-
-    function saveLayout() {
-      const order = [];
-      const sizes = {};
-      document.querySelectorAll('.grid .card').forEach(card => {
-        const key = card.dataset.card;
-        if (!key) return;
-        order.push(key);
-        const colM = (card.style.gridColumn || '').match(/span\s+(\d+)/);
-        const rowM = (card.style.gridRow || '').match(/span\s+(\d+)/);
-        const def = CARD_SIZES[key] || { cols: 2, rows: 1 };
-        sizes[key] = {
-          cols: colM ? parseInt(colM[1]) : def.cols,
-          rows: rowM ? parseInt(rowM[1]) : def.rows,
-        };
-      });
-      localStorage.setItem(LAYOUT_KEY, JSON.stringify({ order, sizes }));
-    }
-
-    function loadLayout() {
-      const { order } = getSavedLayout();
-      if (!order || !order.length) return;
-      const grid = document.querySelector('.grid');
-      if (!grid) return;
-      order.forEach(key => {
-        const card = grid.querySelector('[data-card="' + key + '"]');
-        if (card) grid.appendChild(card);
-      });
-    }
-
-    function toggleEditMode() {
-      const isEdit = document.body.classList.toggle('edit-mode');
-      const btn = document.getElementById('edit-layout-btn');
-      if (btn) btn.textContent = isEdit ? '✅ Hotovo' : '✏️ Edit Layout';
-      if (!isEdit) {
-        saveLayout();
-        // Redraw map after layout change to fit new size
-        setTimeout(() => drawWorldMap(Object.keys(_countryLinks).map(Number)), 60);
+      const bar = document.getElementById('gmBar');
+      bar.innerHTML = '';
+      for (const g of goals) {
+        const seg = document.createElement('div');
+        seg.className = 'gm-bar-seg' + (g.done ? ' gm-bar-seg-done' : '');
+        bar.appendChild(seg);
       }
+      document.getElementById('todayLabel').textContent = `Today — ${formatDate(getActiveDateString())}`;
     }
 
-    function resizeCard(btn, dir) {
-      const card = btn.closest('.card');
-      if (!card) return;
-      const m = (card.style.gridColumn || '').match(/span\s+(\d+)/);
-      let cols = m ? parseInt(m[1]) : (CARD_SIZES[card.dataset.card]?.cols || 2);
-      cols = dir === '+' ? Math.min(cols + 1, 6) : Math.max(cols - 1, 1);
-      card.style.gridColumn = 'span ' + cols;
-      saveLayout();
+    function renderStreak() {
+      const { count = 0 } = storeGet(STREAK_KEY) || {};
+      document.getElementById('gmStreakNum').textContent = count;
+      document.getElementById('gmStreak').classList.toggle('gm-streak-active', count > 0);
     }
 
-    function getGridMetrics() {
-      const grid = document.querySelector('.grid');
-      const gap = parseFloat(getComputedStyle(grid).columnGap) || 7;
-      const colW = (grid.offsetWidth - gap * 5) / 6;
-      const rowH = 120 + gap;
-      return { colW, rowH, gap };
+    function renderTomorrowCount() {
+      const goals = storeGet(`goals:${getTomorrowDateString()}`) || [];
+      document.getElementById('gmTomorrowCount').textContent = `${goals.length} planned`;
+      document.getElementById('tomorrowLabel').textContent =
+        `Plan tomorrow — ${formatDate(getTomorrowDateString())}`;
     }
 
-    function initResizeHandles() {
-      document.querySelectorAll('.grid .card').forEach(card => {
-        card.querySelector('.rh-r')?.addEventListener('mousedown', e => startEdgeResize(e, card, 'col'));
-        card.querySelector('.rh-b')?.addEventListener('mousedown', e => startEdgeResize(e, card, 'row'));
-        card.querySelector('.rh-c')?.addEventListener('mousedown', e => startEdgeResize(e, card, 'both'));
-      });
+    function loadToday() {
+      const key = `goals:${getActiveDateString()}`;
+      const goals = storeGet(key) || [];
+      renderListInto(goals, document.getElementById('goalList'),
+                     document.getElementById('emptyState'), key, false);
+    }
+    function loadTomorrow() {
+      const key = `goals:${getTomorrowDateString()}`;
+      const goals = storeGet(key) || [];
+      renderListInto(goals, document.getElementById('tomorrowList'),
+                     document.getElementById('tomorrowEmpty'), key, true);
     }
 
-    function startEdgeResize(e, card, mode) {
-      e.preventDefault(); e.stopPropagation();
-      const { colW, rowH, gap } = getGridMetrics();
-      const colM = (card.style.gridColumn || '').match(/span\s+(\d+)/);
-      const rowM = (card.style.gridRow || '').match(/span\s+(\d+)/);
-      const def = CARD_SIZES[card.dataset.card] || { cols: 2, rows: 1 };
-      const startCols = colM ? parseInt(colM[1]) : def.cols;
-      const startRows = rowM ? parseInt(rowM[1]) : def.rows;
-      const startX = e.clientX, startY = e.clientY;
-      const handle = e.currentTarget;
-      handle.classList.add('rh-on');
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = mode === 'col' ? 'col-resize' : mode === 'row' ? 'row-resize' : 'nwse-resize';
-
-      function onMove(ev) {
-        if (mode === 'col' || mode === 'both') {
-          const dx = ev.clientX - startX;
-          const cols = Math.max(1, Math.min(6, startCols + Math.round(dx / (colW + gap))));
-          card.style.gridColumn = 'span ' + cols;
-        }
-        if (mode === 'row' || mode === 'both') {
-          const dy = ev.clientY - startY;
-          const rows = Math.max(1, Math.min(4, startRows + Math.round(dy / rowH)));
-          card.style.gridRow = rows > 1 ? 'span ' + rows : '';
+    /* ══════════════════════════════════════════════════════════════════
+       PUSH REMAINING
+    ══════════════════════════════════════════════════════════════════ */
+    document.getElementById('gmPushBtn').addEventListener('click', () => {
+      const todayKey = `goals:${getActiveDateString()}`;
+      const tmrKey   = `goals:${getTomorrowDateString()}`;
+      const today = storeGet(todayKey) || [];
+      const undone = today.filter(g => !g.done);
+      if (!undone.length) return;
+      if (!confirm(`Push ${undone.length} unfinished goal${undone.length > 1 ? 's' : ''} to tomorrow?`)) return;
+      const tmr = storeGet(tmrKey) || [];
+      const tmrTexts = new Set(tmr.map(g => g.text));
+      for (const g of undone) {
+        if (!tmrTexts.has(g.text)) {
+          tmr.push({ text: g.text, done: false });
+          tmrTexts.add(g.text);
         }
       }
-      function onUp() {
-        handle.classList.remove('rh-on');
-        document.body.style.userSelect = ''; document.body.style.cursor = '';
-        saveLayout();
-        if (card.dataset.card === 'card-world') {
-          setTimeout(() => drawWorldMap(Object.keys(_countryLinks).map(Number)), 60);
+      storeSet(tmrKey, tmr);
+      storeSet(todayKey, today.filter(g => g.done));
+      loadToday(); loadTomorrow();
+    });
+
+    /* ══════════════════════════════════════════════════════════════════
+       ADD + POLISH HANDLERS
+    ══════════════════════════════════════════════════════════════════ */
+    function makeAddHandlers(input, addBtn, polishBtn, key, statusEl, reload) {
+      const flashStatus = (msg, err) => {
+        statusEl.textContent = msg;
+        statusEl.classList.toggle('is-error', !!err);
+        setTimeout(() => { statusEl.textContent = ''; statusEl.classList.remove('is-error'); }, 3500);
+      };
+      addBtn.addEventListener('click', () => {
+        const text = input.value.trim(); if (!text) return;
+        const arr = storeGet(key) || [];
+        arr.push({ text, done: false });
+        storeSet(key, arr);
+        input.value = ''; reload();
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+      });
+      polishBtn.addEventListener('click', async () => {
+        const text = input.value.trim(); if (!text) return;
+        if (!ANTHROPIC_API_KEY) {
+          // Fallback: just add as-typed
+          const arr = storeGet(key) || [];
+          arr.push({ text, done: false });
+          storeSet(key, arr);
+          input.value = '';
+          flashStatus('Polish needs an Anthropic API key — added as-typed.', false);
+          reload();
+          return;
         }
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    }
-
-    let _sortable = null;
-    let _resizeHandlesAttached = false;
-
-    function initLayout() {
-      loadLayout();
-      applyCardSizes();
-      if (!_resizeHandlesAttached) {
-        initResizeHandles();
-        _resizeHandlesAttached = true;
-      }
-      const grid = document.querySelector('.grid');
-      if (!grid || typeof Sortable === 'undefined') return;
-      if (_sortable) return; // already created
-      _sortable = Sortable.create(grid, {
-        handle: '.drag-handle',
-        animation: 180,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        filter: '.rh',
-        preventOnFilter: true,
-        onEnd() {
-          saveLayout();
-          setTimeout(() => drawWorldMap(Object.keys(_countryLinks).map(Number)), 60);
-        },
+        try {
+          const r = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_API_KEY,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-5',
+              max_tokens: 1000,
+              messages: [{
+                role: 'user',
+                content: `Clean up this goal: turn it into a single specific, action-oriented sentence. Return ONLY a JSON array with one string, no preamble, no fences. Goal: ${text}`,
+              }],
+            }),
+          });
+          const data = await r.json();
+          const out = data.content?.[0]?.text || '[]';
+          const cleaned = JSON.parse(out.trim());
+          const polished = (cleaned[0] || text).trim();
+          const arr = storeGet(key) || [];
+          arr.push({ text: polished, done: false });
+          storeSet(key, arr);
+          input.value = ''; reload();
+        } catch (e) {
+          const arr = storeGet(key) || [];
+          arr.push({ text, done: false });
+          storeSet(key, arr);
+          input.value = '';
+          flashStatus('Polish failed — added as-typed.', true);
+          reload();
+        }
       });
     }
 
-    /* ══════════════════════════════════════════
-       GOOGLE OAUTH
-    ══════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════════════════════════
+       FITNESS (Run Coach)
+    ══════════════════════════════════════════════════════════════════ */
+    let _idToken = null;
+    let _user = null;
+    const RUN_PLAN_KEY = 'run_goal_v1';
+
+    function getOrInitRunPlan() {
+      let p = storeGet(RUN_PLAN_KEY);
+      if (!p) {
+        const start = new Date();
+        const end = new Date(); end.setDate(end.getDate() + RUN_GOAL_DAYS);
+        p = { targetKm: RUN_GOAL_KM, startDate: ymd(start), targetDate: ymd(end) };
+        storeSet(RUN_PLAN_KEY, p);
+      }
+      return p;
+    }
+
+    async function authFetch(url, opts = {}) {
+      if (!_idToken) {
+        const stored = sessionStorage.getItem('mb_user');
+        if (stored) { try { _idToken = JSON.parse(stored).idToken || null; } catch {} }
+      }
+      const headers = Object.assign({}, opts.headers || {});
+      if (_idToken) headers['Authorization'] = 'Bearer ' + _idToken;
+      const res = await fetch(url, { ...opts, headers });
+      return res;
+    }
+
+    function fmtKm(m) {
+      if (m == null || isNaN(m)) return '—';
+      return (m / 1000).toFixed(2);
+    }
+    function fmtHM(min) {
+      if (min == null || isNaN(min)) return '—';
+      const h = Math.floor(min / 60);
+      const m = Math.round(min % 60);
+      return h ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    let _fitData = null;
+
+    async function refreshFitness() {
+      if (!_idToken) return;
+      const refreshBtn = document.getElementById('fitRefreshBtn');
+      refreshBtn.disabled = true; refreshBtn.textContent = '↻ Loading…';
+      try {
+        const [stravaRes, sleepRes] = await Promise.all([
+          authFetch('/api/strava').then(r => r.json()).catch(e => ({ error: e.message })),
+          authFetch('/api/sleep').then(r => r.json()).catch(e => ({ error: e.message })),
+        ]);
+        _fitData = { strava: stravaRes, sleep: sleepRes };
+        renderFitness();
+      } finally {
+        refreshBtn.disabled = false; refreshBtn.textContent = '↻ Refresh data';
+      }
+    }
+
+    function renderFitness() {
+      const plan = getOrInitRunPlan();
+      const eyebrow = document.getElementById('fitEyebrow');
+      const goal = document.getElementById('fitGoal');
+      const daysLeft = document.getElementById('fitDaysLeft');
+
+      eyebrow.textContent = `Run Coach — toward ${plan.targetKm} km`;
+      goal.textContent = `Started ${formatDate(plan.startDate)} · target ${formatDate(plan.targetDate)}`;
+
+      const today = new Date();
+      const target = new Date(plan.targetDate);
+      const dleft = Math.max(0, Math.ceil((target - today) / 86400000));
+      daysLeft.textContent = `${dleft} ${dleft === 1 ? 'day' : 'days'} to go`;
+
+      if (!_fitData) return;
+      const { strava, sleep } = _fitData;
+
+      // Longest run vs goal
+      const longestKm = strava?.longestKm || 0;
+      const num = document.getElementById('fitProgressNum');
+      const lbl = document.getElementById('fitProgressLabel');
+      num.textContent = longestKm.toFixed(2);
+      document.getElementById('fitProgressTotal').textContent = `/ ${plan.targetKm} km`;
+      const pct = Math.min(100, Math.round((longestKm / plan.targetKm) * 100));
+      document.getElementById('fitBarFill').style.width = pct + '%';
+      lbl.textContent = longestKm >= plan.targetKm ? 'goal reached 🎉' : 'longest run so far';
+
+      // Sleep
+      const sl = document.getElementById('fitSleep');
+      const slSub = document.getElementById('fitSleepSub');
+      if (sleep?.error || sleep?.needsAuth) {
+        sl.textContent = '—'; slSub.textContent = sleep.needsAuth ? 'reconnect Google Fit' : 'no data';
+      } else if (sleep?.lastNight) {
+        const mins = sleep.lastNight.minutes || 0;
+        sl.textContent = fmtHM(mins);
+        sl.classList.toggle('is-success', mins >= 7 * 60);
+        sl.classList.toggle('is-warning', mins >= 6 * 60 && mins < 7 * 60);
+        sl.classList.toggle('is-danger',  mins < 6 * 60);
+        slSub.textContent = sleep.lastNight.date || '';
+      } else {
+        sl.textContent = '—'; slSub.textContent = 'no data';
+      }
+
+      // 7-day km
+      const w = document.getElementById('fit7dKm');
+      const wSub = document.getElementById('fit7dSub');
+      if (strava?.error || strava?.needsAuth) {
+        w.textContent = '—'; wSub.textContent = strava.needsAuth ? 'connect Strava' : 'error';
+      } else {
+        const km7 = (strava?.weekKmMeters || 0) / 1000;
+        w.textContent = km7.toFixed(2);
+        wSub.textContent = `${strava?.weekCount || 0} runs`;
+      }
+
+      // Last run
+      const l = document.getElementById('fitLastKm');
+      const lSub = document.getElementById('fitLastSub');
+      if (strava?.lastRun) {
+        l.textContent = fmtKm(strava.lastRun.distance);
+        const days = strava.lastRun.daysAgo;
+        lSub.textContent = days === 0 ? 'today' : `${days}d ago`;
+      } else {
+        l.textContent = '—'; lSub.textContent = 'never';
+      }
+    }
+
+    async function getCoachNote() {
+      if (!_idToken) { openLogin(); return; }
+      const btn = document.getElementById('fitCoachBtn');
+      const rec = document.getElementById('fitRec');
+      const title = document.getElementById('fitRecTitle');
+      const body = document.getElementById('fitRecBody');
+      btn.disabled = true; btn.textContent = '🧠 Thinking…';
+      try {
+        const plan = getOrInitRunPlan();
+        const res = await authFetch('/api/coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        });
+        const data = await res.json();
+        if (data.error || data.needsAuth) {
+          title.textContent = '⚠️ Coach unavailable';
+          body.textContent = data.reason || data.error || 'Unknown error';
+          rec.style.display = 'block';
+        } else {
+          title.textContent = data.title || 'Today\'s plan';
+          body.textContent = data.note || '—';
+          rec.style.display = 'block';
+        }
+      } catch (e) {
+        title.textContent = '⚠️ Coach error';
+        body.textContent = e.message;
+        rec.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = '🧠 Get today\'s coach note';
+      }
+    }
+
+    function showFitnessLocked(locked) {
+      document.getElementById('fitLocked').style.display = locked ? 'block' : 'none';
+      document.getElementById('fitActions').style.display = locked ? 'none' : 'flex';
+      if (locked) {
+        document.getElementById('fitEyebrow').textContent = 'Fitness — locked';
+      }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       GOOGLE OAUTH (gates the Fitness card only)
+    ══════════════════════════════════════════════════════════════════ */
     function parseJwt(token) {
       const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
       return JSON.parse(decodeURIComponent(atob(base64).split('').map(c =>
         '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
     }
-
-    let _appInitialized = false;
-    let _refreshTimer = null;
-    let _spotifyTimer = null;
-
-    function showApp(user) {
-      document.getElementById('login-screen').style.display = 'none';
-      const app = document.getElementById('app');
-      app.style.display = 'flex';
-      if (user && user.picture) {
-        const av = document.getElementById('user-avatar');
-        av.src = user.picture; av.style.display = 'block';
-      }
-      if (_appInitialized) {
-        refreshAll();
-        return;
-      }
-      _appInitialized = true;
-      // Initialize after layout is shown
-      setTimeout(() => {
-        initFocus();
-        initScratchpad();
-        initHabits();
-        updatePomoDisplay();
-        initLayout();
-        initWorldMap();
-        refreshAll();
-        if (_refreshTimer) clearInterval(_refreshTimer);
-        if (_spotifyTimer) clearInterval(_spotifyTimer);
-        _refreshTimer = setInterval(refreshAll, 5 * 60 * 1000);
-        _spotifyTimer = setInterval(fetchSpotify, 30 * 1000);
-      }, 50);
-    }
-
-    /* ID token for authenticated /api/* calls. The Google credential JWT
-       lives ~1h; we store it in sessionStorage and re-prompt on 401. */
-    let _idToken = null;
-
-    function handleCredentialResponse(response) {
-      const payload = parseJwt(response.credential);
-      if (payload.email === ALLOWED_EMAIL) {
-        _idToken = response.credential;
-        sessionStorage.setItem('mb_user', JSON.stringify({
-          email: payload.email, name: payload.name, picture: payload.picture,
-          idToken: response.credential,
-        }));
-        showApp(payload);
-      } else {
-        document.getElementById('access-denied').style.display = 'block';
-      }
-    }
-
-    // Fetch helper for protected endpoints. Adds Authorization header.
-    // On 401, clears credentials and re-prompts sign-in once.
-    let _reauthInFlight = false;
-    async function authFetch(url, opts = {}) {
-      if (!_idToken) {
-        const stored = sessionStorage.getItem('mb_user');
-        if (stored) {
-          try { _idToken = JSON.parse(stored).idToken || null; } catch {}
-        }
-      }
-      const headers = Object.assign({}, opts.headers || {});
-      if (_idToken) headers['Authorization'] = 'Bearer ' + _idToken;
-      const res = await fetch(url, { ...opts, headers });
-      if (res.status === 401) {
-        const body = await res.clone().json().catch(() => ({}));
-        // Distinguish "user not authenticated" (re-login) from "upstream not
-        // connected" (handler returned 401 with needsAuth for missing env).
-        if (body.reason || !body.error?.includes('not_connected')) {
-          handleAuthFailure();
-        }
-      }
-      return res;
-    }
-
-    function handleAuthFailure() {
-      if (_reauthInFlight) return;
-      _reauthInFlight = true;
-      _idToken = null;
-      sessionStorage.removeItem('mb_user');
-      if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
-      if (_spotifyTimer) { clearInterval(_spotifyTimer); _spotifyTimer = null; }
-      if (spProgressInterval) { clearInterval(spProgressInterval); spProgressInterval = null; }
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'flex';
-      if (IS_CONFIGURED && window.google) {
-        try { google.accounts.id.prompt(); } catch {}
-      }
-      setTimeout(() => { _reauthInFlight = false; }, 1000);
-    }
-
+    function openLogin()  { document.getElementById('login-overlay').classList.add('is-open'); }
+    function closeLogin() { document.getElementById('login-overlay').classList.remove('is-open'); }
     function signOut() {
       sessionStorage.removeItem('mb_user');
-      _idToken = null;
-      if (IS_CONFIGURED && window.google) google.accounts.id.disableAutoSelect();
-      if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
-      if (_spotifyTimer) { clearInterval(_spotifyTimer); _spotifyTimer = null; }
-      if (spProgressInterval) { clearInterval(spProgressInterval); spProgressInterval = null; }
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'flex';
+      _idToken = null; _user = null;
+      document.getElementById('logout-btn').style.display = 'none';
+      showFitnessLocked(true);
+      if (IS_CONFIGURED && window.google) {
+        try { google.accounts.id.disableAutoSelect(); } catch {}
+      }
+    }
+    function onLoginSuccess(payload, credential) {
+      _idToken = credential;
+      _user = payload;
+      sessionStorage.setItem('mb_user', JSON.stringify({
+        email: payload.email, name: payload.name, picture: payload.picture,
+        idToken: credential,
+      }));
+      closeLogin();
+      document.getElementById('logout-btn').style.display = 'block';
+      showFitnessLocked(false);
+      refreshFitness();
+    }
+    function handleCredentialResponse(response) {
+      const payload = parseJwt(response.credential);
+      if (payload.email === ALLOWED_EMAIL) onLoginSuccess(payload, response.credential);
+      else document.getElementById('access-denied').style.display = 'block';
     }
 
-    /* ══════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════
        BOOT
-    ══════════════════════════════════════════ */
-    window.addEventListener('load', () => {
+    ══════════════════════════════════════════════════════════════════ */
+    function boot() {
+      rollover();
+      streakCheck();
+      renderStreak();
+
+      const todayKey = `goals:${getActiveDateString()}`;
+      const tmrKey   = `goals:${getTomorrowDateString()}`;
+      makeAddHandlers(
+        document.getElementById('goalInput'),
+        document.getElementById('goalAddBtn'),
+        document.getElementById('goalPolishBtn'),
+        todayKey,
+        document.getElementById('polishStatus'),
+        loadToday,
+      );
+      makeAddHandlers(
+        document.getElementById('tomorrowInput'),
+        document.getElementById('tomorrowAddBtn'),
+        document.getElementById('tomorrowPolishBtn'),
+        tmrKey,
+        document.getElementById('tomorrowStatus'),
+        loadTomorrow,
+      );
+
+      loadToday(); loadTomorrow();
+      updateDayRing(); setInterval(updateDayRing, 60 * 1000);
+      tickerStart();
+
+      // Fitness card wires
+      document.getElementById('fitCoachBtn').addEventListener('click', getCoachNote);
+      document.getElementById('fitRefreshBtn').addEventListener('click', refreshFitness);
+
+      // Restore session if any
       const stored = sessionStorage.getItem('mb_user');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          if (parsed.idToken) _idToken = parsed.idToken;
-          showApp(parsed);
-          return;
+          if (parsed.idToken) {
+            _idToken = parsed.idToken; _user = parsed;
+            document.getElementById('logout-btn').style.display = 'block';
+            showFitnessLocked(false);
+            refreshFitness();
+          }
         } catch {}
+      } else {
+        showFitnessLocked(true);
       }
 
-      if (!IS_CONFIGURED) {
-        document.getElementById('setup-notice').style.display = 'block';
-        document.getElementById('g-signin-btn').innerHTML =
-          '<p style="color:#ff4757;font-size:12px;text-align:center">⛔ Client ID nie je nastavené — pozri pokyny nižšie</p>';
-        return;
-      }
-
-      function initGSI() {
+      // Init GSI for fitness gate
+      if (!IS_CONFIGURED) return;
+      const initGSI = () => {
         google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: handleCredentialResponse,
           auto_select: false,
-          cancel_on_tap_outside: false,
+          cancel_on_tap_outside: true,
         });
         google.accounts.id.renderButton(
           document.getElementById('g-signin-btn'),
-          { theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', logo_alignment: 'left', width: 280 }
+          { theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', width: 280 },
         );
-        google.accounts.id.prompt();
-      }
-
-      if (window.google && window.google.accounts) {
-        initGSI();
-      } else {
+      };
+      if (window.google && window.google.accounts) initGSI();
+      else {
         const poll = setInterval(() => {
           if (window.google && window.google.accounts) { clearInterval(poll); initGSI(); }
-        }, 100);
+        }, 120);
       }
-    });
-
-    // Currency loads independently (doesn't need login)
-    loadCurrencies();
-    setInterval(loadCurrencies, 10 * 60 * 1000);
-
-    // Window resize: redraw map
-    window.addEventListener('resize', () => {
-      clearTimeout(window._mapRedraw);
-      window._mapRedraw = setTimeout(() => {
-        drawWorldMap(Object.keys(_countryLinks).map(Number));
-      }, 200);
-    });
+    }
+    window.addEventListener('load', boot);
   </script>
 </body>
-
 </html>
