@@ -2,4 +2,5 @@
 .env*.local
 mobile/node_modules/
 mobile/.expo/
+mobile/.claude/
 mobile/dist/
