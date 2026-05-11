@@ -2058,6 +2058,8 @@
         <p style="margin-top:10px"><button class="fit-btn is-primary" onclick="openLogin()">Sign in with Google</button>
         </p>
       </div>
+      <div id="fitRecentRuns" style="display:none;margin-top:14px"></div>
+
       <div class="fit-actions" id="fitActions" style="display:none">
         <button class="fit-btn is-primary" id="fitCoachBtn">🧠 Get today's coach note</button>
         <button class="fit-btn" id="fitRefreshBtn">↻ Refresh data</button>
@@ -2766,6 +2768,12 @@
       const m = Math.round(min % 60);
       return h ? `${h}h ${m}m` : `${m}m`;
     }
+    function paceFmt(secPerKm) {
+      if (!secPerKm) return null;
+      const minutes = Math.floor(secPerKm / 60);
+      const seconds = Math.round(secPerKm % 60);
+      return `${minutes}:${String(seconds).padStart(2, '0')}/km`;
+    }
 
     let _fitData = null;
 
@@ -2810,7 +2818,16 @@
       document.getElementById('fitProgressTotal').textContent = `/ ${plan.targetKm} km`;
       const pct = Math.min(100, Math.round((longestKm / plan.targetKm) * 100));
       document.getElementById('fitBarFill').style.width = pct + '%';
-      lbl.textContent = longestKm >= plan.targetKm ? 'goal reached 🎉' : 'longest run so far';
+      const goalReached = longestKm >= plan.targetKm;
+      if (goalReached) {
+        lbl.textContent = 'goal reached 🎉 — now improve your 10K pace';
+        document.getElementById('fitProgressTotal').textContent = `/ ${plan.targetKm} km`;
+        document.getElementById('fitGoal').textContent = 'Cieľ: zlepšiť čas na 10 km';
+        document.getElementById('fitEyebrow').textContent = 'Run Coach — toward faster 10K';
+        document.querySelector('.section-title').textContent = 'Run Coach — Rýchlejší 10K';
+      } else {
+        lbl.textContent = 'longest run so far';
+      }
 
       // Sleep
       const sl = document.getElementById('fitSleep');
@@ -2848,6 +2865,31 @@
         lSub.textContent = days === 0 ? 'today' : `${days}d ago`;
       } else {
         l.textContent = '—'; lSub.textContent = 'never';
+      }
+
+      // Recent runs list
+      const recentEl = document.getElementById('fitRecentRuns');
+      const recent = strava?.recent || [];
+      if (recent.length) {
+        recentEl.style.display = 'block';
+        recentEl.innerHTML = `
+          <div style="font-size:10px;letter-spacing:.08em;color:var(--text-tertiary,#666);text-transform:uppercase;margin-bottom:8px">Posledné behy</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${recent.map(r => {
+          const km = (r.distance / 1000).toFixed(2);
+          const pace = r.averagePace ? paceFmt(r.averagePace) : null;
+          const dur = r.movingTime ? (() => { const m = Math.floor(r.movingTime / 60); const s = r.movingTime % 60; return `${m}:${String(s).padStart(2, '0')}`; })() : null;
+          const date = r.date ? new Date(r.date).toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric' }) : '';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:rgba(255,255,255,.04);border-radius:8px;font-size:13px">
+                <span style="font-weight:600;color:#e2e8f0">${km} km</span>
+                <span style="color:#8892b0">${dur || '—'}</span>
+                <span style="color:#6c63ff">${pace || '—'}</span>
+                <span style="color:#8892b0;font-size:11px">${date}</span>
+              </div>`;
+        }).join('')}
+          </div>`;
+      } else {
+        recentEl.style.display = 'none';
       }
     }
 
