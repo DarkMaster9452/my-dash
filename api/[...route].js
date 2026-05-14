@@ -1152,39 +1152,39 @@ async function handleStravaAuthCallback(req, res) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   DASHBOARD SYNC  — NeonDB key-value store
-   Mirrors localStorage keys across devices (phone ↔ PC).
-   Requires DATABASE_URL env var (Neon connection string).
+   DASHBOARD SYNC  — NeonDB "dashboards" project, martin_sync table
+   Mirrors localStorage keys across devices (phone <-> PC).
+   Requires MARTIN_DASHBOARD_URL env var (Neon connection string).
 
    Keys synced: goals:*, goal_streak_v1, po_water_v1, stack:*, poc_*
-   GET  /api/sync          → { items: [{key, data, updated_at}] }
-   GET  /api/sync?key=xxx  → { key, data, updated_at }
-   POST /api/sync          body: { key, data } → { ok: true }
-   DELETE /api/sync?key=xxx → { ok: true }
+   GET  /api/sync          -> { items: [{key, data, updated_at}] }
+   GET  /api/sync?key=xxx  -> { key, data, updated_at }
+   POST /api/sync          body: { key, data } -> { ok: true }
+   DELETE /api/sync?key=xxx -> { ok: true }
 ══════════════════════════════════════════════════════════════════ */
 async function handleSync(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!process.env.DATABASE_URL) {
-    return res.status(503).json({ error: 'DATABASE_URL not configured' });
+  if (!process.env.MARTIN_DASHBOARD_URL) {
+    return res.status(503).json({ error: 'MARTIN_DASHBOARD_URL not configured' });
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = neon(process.env.MARTIN_DASHBOARD_URL);
 
   try {
     if (req.method === 'GET') {
       const key = req.query?.key;
       if (key) {
         const rows = await sql`
-          SELECT key, data, updated_at FROM dashboard_sync WHERE key = ${key}
+          SELECT key, data, updated_at FROM martin_sync WHERE key = ${key}
         `;
         if (!rows.length) return res.status(200).json({ key, data: null });
         return res.status(200).json(rows[0]);
       }
       // Return all keys
       const rows = await sql`
-        SELECT key, data, updated_at FROM dashboard_sync ORDER BY updated_at DESC
+        SELECT key, data, updated_at FROM martin_sync ORDER BY updated_at DESC
       `;
       return res.status(200).json({ items: rows });
     }
@@ -1194,7 +1194,7 @@ async function handleSync(req, res) {
       const { key, data } = body;
       if (!key) return res.status(400).json({ error: 'key required' });
       await sql`
-        INSERT INTO dashboard_sync (key, data, updated_at)
+        INSERT INTO martin_sync (key, data, updated_at)
         VALUES (${key}, ${JSON.stringify(data)}::jsonb, NOW())
         ON CONFLICT (key) DO UPDATE
           SET data = ${JSON.stringify(data)}::jsonb,
@@ -1206,7 +1206,7 @@ async function handleSync(req, res) {
     if (req.method === 'DELETE') {
       const key = req.query?.key;
       if (!key) return res.status(400).json({ error: 'key required' });
-      await sql`DELETE FROM dashboard_sync WHERE key = ${key}`;
+      await sql`DELETE FROM martin_sync WHERE key = ${key}`;
       return res.status(200).json({ ok: true, key });
     }
 
