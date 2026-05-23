@@ -587,15 +587,17 @@ async function loadStrava(){
   const card = document.getElementById('stravaCard');
   try {
     const raw = await window.cowork.callMcpTool(
-      'mcp__edd70433-6e61-443e-bcb8-c7322d3fa048__web_fetch_vercel_url',
+      'mcp__workspace__web_fetch',
       {url: 'https://morning-briefing.vercel.app/api/strava'}
     );
     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-    // web_fetch_vercel_url returns {content:[{text:'...'}]}
+    // mcp__workspace__web_fetch returns the response body directly or as {content:[{text:'...'}]}
     let payload = data;
     if (data && data.content && data.content[0] && data.content[0].text) {
       try { payload = JSON.parse(data.content[0].text); } catch(e) {}
+    } else if (typeof data === 'string') {
+      try { payload = JSON.parse(data); } catch(e) {}
     }
 
     if (!payload || payload.error) {
