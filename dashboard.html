@@ -733,9 +733,22 @@ async function chat(txt){
   busy=true;document.getElementById('sendBtn').disabled=true;
   addBubble('user',txt);addThink();
   try{
-    const r=await window.cowork.askClaude(coachCtx()+'\n\nMartin: '+txt+'\n\nCoach Miroslav:',[]);
-    rmThink();addBubble('coach',r);
-  }catch{rmThink();addBubble('coach','Lost signal — try again? 💪');}
+    if(!window.cowork?.askClaude) throw new Error('window.cowork.askClaude not available');
+    const ctx = coachCtx();
+    const prompt = ctx + '\n\nMartin: ' + txt + '\n\nCoach Miroslav (respond in 1-3 sentences unless detail needed):';
+    const r = await window.cowork.askClaude(prompt, []);
+    rmThink();
+    addBubble('coach', typeof r === 'string' ? r : JSON.stringify(r));
+  } catch(err) {
+    console.error('Coach error:', err);
+    rmThink();
+    const msg = err?.message || String(err);
+    if(msg.includes('not available')) {
+      addBubble('coach','Open this dashboard inside Cowork to chat with me. 🏔️');
+    } else {
+      addBubble('coach','Connection error: ' + msg.slice(0,80) + ' — try again? 💪');
+    }
+  }
   finally{busy=false;document.getElementById('sendBtn').disabled=false;document.getElementById('chatIn').focus();}
 }
 document.getElementById('chatIn').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
