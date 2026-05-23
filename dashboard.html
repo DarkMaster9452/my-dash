@@ -197,6 +197,22 @@ body{font-family:var(--f);color:var(--t1);font-size:14px;line-height:1.5;
 .send-btn{background:var(--t1);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--f);flex-shrink:0}
 .send-btn:disabled{opacity:.4;cursor:default}
 
+/* ─── Strava runs ─── */
+.strava-header{padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between}
+.strava-meta{display:flex;gap:16px;padding:10px 18px 14px}
+.st-stat{display:flex;flex-direction:column;align-items:center;flex:1}
+.st-num{font-family:var(--fm);font-size:18px;font-weight:700;color:var(--t1);letter-spacing:-.5px}
+.st-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.run-row{padding:11px 18px;display:flex;align-items:center;gap:12px}
+.run-row+.run-row{border-top:1px solid var(--border)}
+.run-icon{width:32px;height:32px;border-radius:8px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.run-body{flex:1;min-width:0}
+.run-name{font-size:13px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-chips{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap}
+.run-chip{font-size:10px;color:var(--t3);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--fm)}
+.strava-connect{padding:18px;text-align:center;font-size:13px;color:var(--t3)}
+.strava-connect a{color:var(--blue);text-decoration:none;font-weight:500}
+
 /* ─── Type colors ─── */
 .tp-easy{background:#EBF2FF;color:#2952CC}
 .tp-tempo{background:#FEF8E8;color:#C27C1A}
@@ -250,6 +266,15 @@ body{font-family:var(--f);color:var(--t1);font-size:14px;line-height:1.5;
 <div class="sec">
   <div class="sec-hd"><span class="sec-title">This Week</span></div>
   <div class="card"><div class="week-row" id="weekRow"></div></div>
+</div>
+
+<!-- STRAVA -->
+<div class="sec">
+  <div class="sec-hd">
+    <span class="sec-title">Strava Runs</span>
+    <span class="badge badge-green" id="stravaBadge" style="display:none"></span>
+  </div>
+  <div class="card" id="stravaCard"><div class="state">Loading…</div></div>
 </div>
 
 <!-- CALENDAR -->
@@ -555,19 +580,114 @@ function renderW(){
 }
 renderW();
 
+// ── STRAVA ──
+let stravaData = null;
+
+async function loadStrava(){
+  const card = document.getElementById('stravaCard');
+  try {
+    const raw = await window.cowork.callMcpTool(
+      'mcp__edd70433-6e61-443e-bcb8-c7322d3fa048__web_fetch_vercel_url',
+      {url: 'https://morning-briefing.vercel.app/api/strava'}
+    );
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+    // web_fetch_vercel_url returns {content:[{text:'...'}]}
+    let payload = data;
+    if (data && data.content && data.content[0] && data.content[0].text) {
+      try { payload = JSON.parse(data.content[0].text); } catch(e) {}
+    }
+
+    if (!payload || payload.error) {
+      const hint = payload?.needsAuth ? ' — Strava not connected yet.' : ': '+(payload?.error||'unknown');
+      card.innerHTML = `<div class="strava-connect">Strava not connected${hint}</div>`;
+      return;
+    }
+
+    stravaData = payload;
+
+    // Update strava chip in race card
+    const weekKmStr = ((payload.weekKmMeters||0)/1000).toFixed(1);
+    document.getElementById('stravaBadge').textContent = weekKmStr + ' km';
+    document.getElementById('stravaBadge').style.display = '';
+
+    // Build card
+    const fmt = sec => {
+      const m = Math.floor(sec/60), s = sec%60;
+      return m + ':' + String(s).padStart(2,'0');
+    };
+    const pace = ps => {
+      if (!ps) return '–';
+      const ppm = Math.round(ps); // seconds per km
+      return Math.floor(ppm/60)+':'+String(ppm%60).padStart(2,'0')+'/km';
+    };
+
+    const recent = payload.recent || [];
+    const daysSince = payload.lastRun?.daysAgo;
+    const lastTag = daysSince === 0 ? 'Today' : daysSince === 1 ? 'Yesterday' : daysSince != null ? daysSince+'d ago' : null;
+
+    let h = `<div class="strava-header">
+      <span class="label">Last 30 days</span>
+      ${lastTag ? `<span class="run-chip" style="font-size:11px;color:var(--green);background:var(--green-l);border-color:var(--green)">Last run: ${lastTag}</span>` : ''}
+    </div>
+    <div class="strava-meta">
+      <div class="st-stat"><div class="st-num">${((payload.weekKmMeters||0)/1000).toFixed(1)}</div><div class="st-lbl">km this week</div></div>
+      <div class="st-stat"><div class="st-num">${((payload.monthMeters||0)/1000).toFixed(1)}</div><div class="st-lbl">km this month</div></div>
+      <div class="st-stat"><div class="st-num">${payload.runCount||0}</div><div class="st-lbl">total runs</div></div>
+      <div class="st-stat"><div class="st-num">${payload.longestKm||0}</div><div class="st-lbl">longest km</div></div>
+    </div>`;
+
+    if (recent.length) {
+      recent.forEach(run => {
+        const km = ((run.distance||0)/1000).toFixed(2);
+        const dateStr = run.date ? run.date.slice(0,10) : '';
+        h += `<div class="run-row">
+          <div class="run-icon">🏃</div>
+          <div class="run-body">
+            <div class="run-name">${run.name||'Run'}</div>
+            <div class="run-chips">
+              <span class="run-chip">${km} km</span>
+              ${run.movingTime ? `<span class="run-chip">${fmt(run.movingTime)}</span>` : ''}
+              ${run.averagePace ? `<span class="run-chip">${pace(run.averagePace)}</span>` : ''}
+              ${run.averageHr ? `<span class="run-chip">♥ ${Math.round(run.averageHr)} bpm</span>` : ''}
+              ${dateStr ? `<span class="run-chip">${dateStr}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+    card.innerHTML = h;
+  } catch(e) {
+    card.innerHTML = '<div class="err">Failed to load Strava</div>';
+    console.error('Strava error:', e);
+  }
+}
+loadStrava();
+
 // ── COACH ──
 let busy=false;
 function coachCtx(){
   const today=ts(),w=PLAN.find(p=>p.d===today),d=dl();
   const nxt=PLAN.filter(p=>{const dd=Math.ceil((new Date(p.d)-new Date(today))/864e5);return dd>=0&&dd<=7;}).map(p=>`${p.d}: ${p.n}${p.km>0?' '+p.km+'km':''}`).join(' | ');
+
+  let stravaCtx = '';
+  if (stravaData) {
+    const wk = ((stravaData.weekKmMeters||0)/1000).toFixed(1);
+    const mo = ((stravaData.monthMeters||0)/1000).toFixed(1);
+    const lr = stravaData.lastRun;
+    const recent = (stravaData.recent||[]).slice(0,4).map(r=>`${r.date?r.date.slice(0,10):''}: ${((r.distance||0)/1000).toFixed(2)}km${r.averageHr?' @ '+Math.round(r.averageHr)+'bpm':''}`).join(', ');
+    stravaCtx = `\nSTRAVA ACTUAL DATA: ${wk}km this week, ${mo}km this month, ${stravaData.runCount} runs. Last run: ${lr?((lr.distance/1000).toFixed(2)+'km '+lr.daysAgo+'d ago'):'unknown'}. Recent: ${recent}`;
+  }
+
   return`You are Coach Miroslav — elite ultramarathon runner (UTMB, Western States 100, Spartathlon finisher, 15+ years coaching). Martin's personal running coach. Warm, direct, expert.
 
 GOAL: 3.3 km race · Rajec, Slovakia · June 13 2026 · ${d} days away.
 PHILOSOPHY: Health is ALWAYS #1. No injuries. Smart > hard.
 TODAY (${today}): ${w?w.n+' — '+w.desc:'Rest day'}
-NEXT 7 DAYS: ${nxt}
+NEXT 7 DAYS: ${nxt}${stravaCtx}
 
 Coaching rules:
+• Reference actual Strava data when available — compare planned vs actual
 • Specific numbers always — paces, reps, sets, durations
 • Supplements: magnesium glycinate 300 mg evening, vitamin D3 2000 IU morning, omega-3 2 g with food, collagen 10 g post-run with vitamin C
 • Protein smoothie: 1 banana + 25 g whey + 200 ml oat milk + 1 tbsp almond butter + ice → ~35 g protein, ideal post-run

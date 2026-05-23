@@ -1250,4 +1250,8 @@ export default async function handler(req, res) {
 
   if (segments.length === 2 && segments[0] === 'auth') {
     const authHandler = authHandlers[segments[1]];
-    if (authHandler) return authHan
+    if (authHandler) return authHandler(req, res);
+  }
+
+  return res.status(404).json({ error: 'not_found' });
+}
