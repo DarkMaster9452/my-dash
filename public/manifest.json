@@ -1,0 +1,16 @@
+{
+  "name": "Running Lab",
+  "short_name": "Running Lab",
+  "description": "Bežecký tréningový denník na 5k",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E1116",
+  "theme_color": "#0E1116",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

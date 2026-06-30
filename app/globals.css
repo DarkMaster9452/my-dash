@@ -1,0 +1,34 @@
+:root {
+  --ink: #0E1116;
+  --paper: #14181F;
+  --card: #1B212B;
+  --line: #2A3340;
+  --txt: #E8EDF2;
+  --mut: #7E8B99;
+  --flame: #FF5722;
+  --flame-soft: #FF8A50;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--ink);
+  color: var(--txt);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: rgba(255, 87, 34, 0.3); }
+
+.mono { font-family: 'DM Mono', monospace; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+button { font-family: inherit; cursor: pointer; }
+textarea { font-family: 'DM Mono', monospace; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
